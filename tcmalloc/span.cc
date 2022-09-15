@@ -33,6 +33,38 @@ GOOGLE_MALLOC_SECTION_BEGIN
 namespace tcmalloc {
 namespace tcmalloc_internal {
 
+struct escape* EscapeTable::alloc_escape() {
+  struct escape *ret;
+  assert(0);
+  if (!freelist) {
+    // memory is 512 size
+    void *mem = tc_globals.heap_metadata_allocator().Alloc();
+    struct escape_chunk *new_chunk = static_cast<struct escape_chunk*>(mem);
+    new_chunk->next = allocated_escape_chunks;
+    allocated_escape_chunks = new_chunk;
+    init_freelist(new_chunk);
+  }
+
+  assert(freelist != nullptr);
+  ret = freelist;
+  freelist = freelist->next;
+  memset(ret, 0, sizeof(*ret));
+
+  return ret;
+}
+
+void EscapeTable::Destroy() {
+  // clean the memory used
+  assert(head == nullptr);
+  while (allocated_escape_chunks) {
+    struct escape_chunk *cur = allocated_escape_chunks;
+    allocated_escape_chunks = cur->next;
+
+    void *mem = static_cast<void *>(cur);
+    tc_globals.heap_metadata_allocator().Delete(mem);
+  }
+}
+
 void Span::Sample(SampledAllocation* sampled_allocation) {
   CHECK_CONDITION(!sampled_ && sampled_allocation);
   sampled_ = 1;

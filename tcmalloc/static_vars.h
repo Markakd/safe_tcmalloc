@@ -118,6 +118,10 @@ class Static final {
     return threadcache_allocator_;
   }
 
+  static PageHeapMetaDataAllocator& heap_metadata_allocator() {
+    return heap_metadata_allocator_;
+  }
+
   static SampledAllocationRecorder& sampled_allocation_recorder() {
     return sampled_allocation_recorder_.get_mutable();
   }
@@ -191,6 +195,7 @@ class Static final {
   static PageHeapAllocator<Span> span_allocator_;
   static PageHeapAllocator<ThreadCache> threadcache_allocator_;
   static PageHeapAllocator<StackTraceTable::Bucket> bucket_allocator_;
+  static PageHeapMetaDataAllocator heap_metadata_allocator_;
   ABSL_CONST_INIT static std::atomic<bool> inited_;
   ABSL_CONST_INIT static std::atomic<bool> cpu_cache_active_;
   ABSL_CONST_INIT static PeakHeapTracker peak_heap_tracker_;
@@ -241,6 +246,9 @@ inline Span* Span::New(PageId p, Length len) {
 }
 
 inline void Span::Delete(Span* span) {
+  // the function acquires pageheap_lock
+  // be careful of deadlock here
+  span->escape_table.Destroy();
 #ifndef NDEBUG
   // In debug mode, trash the contents of deleted Spans
   memset(static_cast<void*>(span), 0x3f, sizeof(*span));

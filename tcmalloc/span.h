@@ -71,13 +71,117 @@ inline constexpr size_t kBitmapScalingDenominator = 65536;
 class Span;
 typedef TList<Span> SpanList;
 
+struct escape {
+  struct escape *next;
+  void *addr;
+  struct escape *escape_list; // list of addr escaped
+};
+
+struct escape_chunk {
+  struct escape_chunk *next;
+  struct escape chunks[21];
+  // this should be 512 size
+};
+
+class EscapeTable {
+  // TODO: we need a lock here
+  // absl::base_internal::SpinLock freelist_lock;
+
+  struct escape *head = nullptr;
+
+  // use the freelist in the same page to improve cache-hit
+  struct escape *freelist = nullptr;
+
+  // linked list of escape node allocated
+  // this is used when new allocation for escape
+  // and free escapes, so put it out of cache line
+  struct escape_chunk *allocated_escape_chunks = nullptr;
+
+  inline void init_freelist(struct escape_chunk *chunk) {
+    // init freelist
+    for (int i=0; i<21; i++) {
+      chunk->chunks[i].next = freelist;
+      freelist = &chunk->chunks[i];
+    }
+  }
+
+  inline void delete_escape(struct escape *e) {
+    e->next = freelist;
+    freelist = e;
+  }
+  struct escape* alloc_escape();
+
+ public:
+  void Destroy();
+
+  void Free(void *ptr) {
+    // free allocated_note
+    struct escape *e = remove(ptr);
+
+    while (e->escape_list) {
+      struct escape *cur = e->escape_list;
+      e->escape_list = cur->next;
+      delete_escape(cur);
+    }
+    delete_escape(e);
+  }
+
+  void Insert(void *loc, void *ptr) {
+    struct escape *e = search(ptr);
+    
+    if (!ptr) {
+      e = alloc_escape();
+
+      e->addr = ptr;
+      e->next = head;
+      head->next = e;
+    }
+
+    // init escapes
+    struct escape *val = alloc_escape();
+    val->addr = loc;
+    val->next = e->escape_list;
+    e->escape_list = val;
+  }
+
+  struct escape* search(void *ptr) {
+    struct escape *cur = head;
+    while (cur) {
+      if (cur->addr == ptr) {
+        break;
+      }
+      cur = cur->next;
+    }
+    return cur;
+  }
+
+  struct escape* remove(void *ptr) {
+    struct escape *pre, *cur;
+    for (cur=head; cur; cur = cur->next) {
+      if (cur->addr == ptr) {
+        break;
+      }
+      pre = cur;
+    }
+
+    if (cur) {
+      if (pre == nullptr) {
+        head = cur->next;
+      } else {
+        pre->next = cur->next;
+      }
+    }
+    return cur;
+  }
+};
+
 class Span : public SpanList::Elem {
  public:
   // Allocator/deallocator for spans. Note that these functions are defined
   // in static_vars.h, which is weird: see there for why.
   static Span* New(PageId p, Length len)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock);
-  static void Delete(Span* span) ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock);
+  static void Delete(Span* span);
 
   // locations used to track what list a span resides on.
   enum Location {
@@ -280,6 +384,8 @@ class Span : public SpanList::Elem {
 
   PageId first_page_;  // Starting page number.
   Length num_pages_;   // Number of pages in span.
+
+  EscapeTable escape_table; // the escape table for objects in this span
 
   // Convert object pointer <-> freelist index.
   ObjIdx PtrToIdx(void* ptr, size_t size) const;
@@ -586,7 +692,7 @@ inline void Span::Prefetch() {
 #else
   // The Span can occupy two cache lines, so prefetch the cacheline with the
   // most frequently accessed parts of the Span.
-  static_assert(sizeof(Span) == 48, "Update span prefetch offset");
+  static_assert(sizeof(Span) == 72, "Update span prefetch offset");
   __builtin_prefetch(&this->allocated_, 0, 3);
 #endif
 #endif

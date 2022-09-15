@@ -1197,6 +1197,31 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // TCMALLOC_HAVE_STRUCT_MALLINFO
 
+int do_check_boundary(void *ptr, __int64_t size) noexcept {
+  const PageId p = PageIdContaining(ptr);
+  size_t obj_size = GetSize(ptr);
+
+  // FIXME: size_class could be 0, then p.start_addr couldn't be used.
+  // see GetSize
+
+  // let compiler do the optimization
+  signed long offset = ((unsigned long)ptr - (unsigned long)p.start_addr()) % obj_size;
+  if (offset + size >= 0 && offset + size <= obj_size) {
+    // we are good
+  }
+  printf("oob found\n");
+  abort();
+}
+
+void do_escape(
+    void **loc, void* ptr) noexcept {
+  // store pointer new into loc
+  // so loc will point to new
+  // find span of new and then add to the list
+  const PageId p = PageIdContaining(ptr);
+  Span* span = tc_globals.pagemap().GetDescriptor(p);
+}
+
 }  // namespace
 }  // namespace tcmalloc_internal
 }  // namespace tcmalloc
@@ -1220,6 +1245,10 @@ using tcmalloc::tcmalloc_internal::SetClassCapacity;
 using tcmalloc::tcmalloc_internal::SetPagesCapacity;
 using tcmalloc::tcmalloc_internal::tc_globals;
 using tcmalloc::tcmalloc_internal::UsePerCpuCache;
+
+// export safe function
+using tcmalloc::tcmalloc_internal::do_check_boundary;
+using tcmalloc::tcmalloc_internal::do_escape;
 
 #ifdef TCMALLOC_DEPRECATED_PERTHREAD
 using tcmalloc::tcmalloc_internal::ThreadCache;
@@ -1550,6 +1579,16 @@ extern "C" void* TCMallocInternalRealloc(void* old_ptr,
     return NULL;
   }
   return do_realloc(old_ptr, new_size);
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalCheckBoundary(
+    void *ptr, __int64_t size) noexcept {
+  return do_check_boundary(ptr, size);
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(
+    void** loc, void* ptr) noexcept {
+  return do_escape(loc, ptr);
 }
 
 extern "C" void* TCMallocInternalNewNothrow(size_t size,

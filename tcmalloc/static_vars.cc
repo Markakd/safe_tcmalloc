@@ -70,6 +70,7 @@ ABSL_CONST_INIT GuardedPageAllocator Static::guardedpage_allocator_;
 ABSL_CONST_INIT NumaTopology<kNumaPartitions, kNumBaseClasses>
     Static::numa_topology_;
 // LINT.ThenChange(:static_vars_size)
+ABSL_CONST_INIT PageHeapMetaDataAllocator Static::heap_metadata_allocator_;
 
 ABSL_CONST_INIT Static tc_globals;
 
@@ -92,7 +93,7 @@ size_t Static::metadata_bytes() {
       sizeof(pagemap_) + sizeof(sampled_objects_size_) +
       sizeof(sampled_internal_fragmentation_) +
       sizeof(peak_heap_tracker_) + sizeof(guardedpage_allocator_) +
-      sizeof(numa_topology_);
+      sizeof(numa_topology_) + sizeof(heap_metadata_allocator_);
   // LINT.ThenChange(:static_vars)
 
   const size_t allocated = arena().stats().bytes_allocated +

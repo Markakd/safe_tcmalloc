@@ -55,5 +55,12 @@ int main(int argc, char** argv) {
     std::cout << "Current heap size = " << *heap_size << " bytes" << std::endl;
   }
 
+  char *s = "hello tcmalloc\n";
+  char *s_heap = strdup(s);
+ 
+  printf("got heap at %llx\n", s_heap);
+  printf("content %s\n", s_heap);
+
+  free(s_heap);
   free(ptr2);
 }
