@@ -1,3 +1,29 @@
+# Safe Tcmalloc Compilation Support
+1. Make sure you have ```cmake >= 3.21.4``` 
+2. Make sure you have ```/usr/bin/c++ > 9.0``` 
+3. Make sure you have installed absl correctly by ```absl_install.sh```  
+4. To build tcmalloc correctly, run the following cmds:
+
+
+```bash
+# build tcmalloc
+cmake .
+make -j`nproc`
+make install
+# set env
+echo "PATH=$HOME/usr/local/bin:$PATH:$HOME/bin" >> ~/.bashrc
+echo "LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:$HOME/lib:/$LD_LIBRARY_PATH" >> ~/.bashrc
+echo "export PATH" >> ~/.bashrc
+echo "export LD_LIBRARY_PATH" >> ~/.bashrc
+source ~/.bashrc
+# run the test in tcmalloc/test/test.cc by tcmalloc/test/compile.sh
+cd test
+./compile
+ls -lh ./test.out
+ldd -r ./test.out
+```
+
+
 # TCMalloc
 
 This repository contains the TCMalloc C++ code.
