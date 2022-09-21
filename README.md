@@ -1,4 +1,5 @@
 # Safe Tcmalloc Compilation Support
+0. We defaultly install to /usr/local/lib, if we need to remove them, just run ``` xargs rm <  install_manifest.txt ``` 
 1. Make sure you have ```cmake >= 3.21.4``` 
 2. Make sure you have ```/usr/bin/c++ > 9.0``` 
 3. Make sure you have installed absl correctly by ```absl_install.sh```  
