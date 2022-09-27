@@ -74,6 +74,9 @@ tcmalloc_cc_library(
         "experimental_cfl_aware_size_class.cc"
  PUBLIC
 
+ COPTS "-O2"
+ LINKOPTS "-O2"
+
  DEPS ${tcmalloc_deps} 
         "tcmalloc::common"
 
@@ -280,6 +283,7 @@ tcmalloc_cc_library(
   NAME "common"
   SRCS ${common_srcs}
   HDRS ${common_hdrs}
+  COPTS "-O2"
   LINKSTATIC
   DEPS ${common_deps}
 #   ALWAYSLINK
