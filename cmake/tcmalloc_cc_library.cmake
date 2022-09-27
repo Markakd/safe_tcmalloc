@@ -100,7 +100,7 @@ function(tcmalloc_cc_library)
   #                 where DLL doesn't make sense.
   # 2. "static"  -- This target does not depend on the DLL and should be built
   #                 statically.
-  if(BUILD_SHARED_LIBS AND NOT TCMALLOC_CC_LIB_LINKSTATIC)
+  if(NOT TCMALLOC_CC_LIB_LINKSTATIC)
     set(_build_type "SHARED")
   else()
     set(_build_type "STATIC")
@@ -108,7 +108,7 @@ function(tcmalloc_cc_library)
 
   # NOTE: if we want to compile to shared by default
   set(TCMALLOC_CC_LIB_ALWAYSLINK 0)
-  set(_build_type SHARED)
+  # set(_build_type SHARED)
 
   if(NOT TCMALLOC_CC_LIB_IS_INTERFACE)
     if(_build_type STREQUAL "STATIC" OR _build_type STREQUAL "SHARED")
@@ -134,10 +134,10 @@ function(tcmalloc_cc_library)
         add_library(${_NAME} ${_build_type} "")
         target_sources(${_NAME} PRIVATE ${TCMALLOC_CC_LIB_SRCS} ${TCMALLOC_CC_LIB_HDRS})
         target_link_libraries(${_NAME}
-          PUBLIC  ${TCMALLOC_CC_LIB_DEPS}
+        PRIVATE ${TCMALLOC_CC_LIB_DEPS}
           PRIVATE ${TCMALLOC_CC_LIB_LINKOPTS}
         )
-        #message(${_NAME} ${TCMALLOC_CC_LIB_DEPS} ${TCMALLOC_CC_LIB_LINKOPTS} "\n")
+        # message(${_NAME} ${TCMALLOC_CC_LIB_DEPS} ${TCMALLOC_CC_LIB_LINKOPTS} "\n")
         set(_realname ${_NAME})
       endif()
     else()
@@ -195,12 +195,12 @@ function(tcmalloc_cc_library)
     target_compile_definitions(${_NAME} INTERFACE ${TCMALLOC_CC_LIB_DEFINES})
   endif()
 
-  install(TARGETS ${_NAME} EXPORT ${PROJECT_NAME}Targets
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  )
+  # install(TARGETS ${_NAME} EXPORT ${PROJECT_NAME}Targets
+  #       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  #       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  #       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  # )
 
-  install(FILES ${TCMALLOC_CC_LIB_HDRS} DESTINATION "include/tcmalloc")
+  # install(FILES ${TCMALLOC_CC_LIB_HDRS} DESTINATION "include/tcmalloc")
   add_library(tcmalloc::${TCMALLOC_CC_LIB_NAME} ALIAS ${_NAME})
 endfunction()

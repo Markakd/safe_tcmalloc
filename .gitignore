@@ -1,3 +1,4 @@
 # Bazel
 bazel-*
 .vscode
+build/

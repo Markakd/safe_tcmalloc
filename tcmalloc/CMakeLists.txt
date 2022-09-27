@@ -13,6 +13,7 @@ tcmalloc_cc_library(
   HDRS 
         "experiment.h"
         "experiment_config.h"
+  LINKSTATIC
   DEPS 
         "tcmalloc::malloc_extension"
         "tcmalloc::environment"
@@ -71,14 +72,12 @@ tcmalloc_cc_library(
         "lifetime_based_allocator.cc"
         "lifetime_based_allocator.h"
         "experimental_cfl_aware_size_class.cc"
-      #   "internal/residency.cc"
-      #   "internal/residency.h"
- LINKSTATIC
  PUBLIC
+
  DEPS ${tcmalloc_deps} 
         "tcmalloc::common"
 
-  ALWAYSLINK
+#   ALWAYSLINK
 )
 
 # Provides tcmalloc always; use per-thread mode.
@@ -93,7 +92,7 @@ tcmalloc_cc_library(
         "tcmalloc.h"
 
   COPTS "-DTCMALLOC_DEPRECATED_PERTHREAD"
-  LINKSTATIC
+
   DEPS ${tcmalloc_deps} 
         "tcmalloc::common_deprecated_perthread"
 
@@ -117,7 +116,7 @@ tcmalloc_cc_library(
   COPTS 
         "-O2"
         "-UNDEBUG"
-  LINKSTATIC
+
   DEPS ${tcmalloc_deps}  
         "tcmalloc::common"
   ALWAYSLINK
@@ -184,6 +183,17 @@ set(common_srcs
     "transfer_cache_internals.h"
     "global_stats.h"
     "global_stats.cc"
+    "allocation_sample.cc"      
+    "allocation_sample.h"
+    "experimental_cfl_aware_size_class.cc"
+    "cpu_cache.cc"
+    "cpu_cache.h"
+    "global_stats.h"
+    "global_stats.cc"
+    "sampled_allocation.h"
+    "sampled_allocation.cc"
+    "lifetime_based_allocator.cc"
+    "lifetime_based_allocator.h"
 )
 
 set(common_hdrs 
@@ -227,7 +237,6 @@ set(common_deps
     "tcmalloc::experiment"
     "tcmalloc::malloc_extension"
     "tcmalloc::new_extension"
-    #"tcmalloc::noruntime_size_classes"
     "tcmalloc::size_class_info"
     "absl::algorithm_container"
     "absl::base"
@@ -273,7 +282,7 @@ tcmalloc_cc_library(
   HDRS ${common_hdrs}
   LINKSTATIC
   DEPS ${common_deps}
-  ALWAYSLINK
+#   ALWAYSLINK
 )
 
 tcmalloc_cc_library(
@@ -281,7 +290,7 @@ tcmalloc_cc_library(
   SRCS ${common_srcs}
   HDRS ${common_hdrs}
   COPTS "-DTCMALLOC_DEPRECATED_PERTHREAD"
-  LINKSTATIC
+
   DEPS ${common_deps}
   ALWAYSLINK
 )
@@ -353,32 +362,6 @@ tcmalloc_cc_library(
   ALWAYSLINK
 )
 
-tcmalloc_cc_library(
-  NAME "runtime_size_classes"
-  SRCS "runtime_size_classes.cc"
-  HDRS "runtime_size_classes.h"
-  DEPS 
-        "tcmalloc::size_class_info"
-        "tcmalloc::environment"
-        "tcmalloc::logging"
-        "absl::core_headers"
-        "absl::strings"
-  ALWAYSLINK
-)
-
-# Do we really need this here?
-# tcmalloc_cc_library(
-#   NAME "noruntime_size_classes"
-#   SRCS "noruntime_size_classes.cc"
-#   HDRS 
-#        "runtime_size_classes.h"
-#   DEPS 
-#         "tcmalloc::size_class_info"
-#         "absl::core_headers"
-#         "absl::strings"
-#   ALWAYSLINK
-# )
-
 # TCMalloc with large pages is usually faster but fragmentation is higher.  See
 # https://github.com/google/tcmalloc/tree/master/docs/tuning.md for more details.
 tcmalloc_cc_library(
@@ -392,7 +375,7 @@ tcmalloc_cc_library(
         "tcmalloc.h"
 
   COPTS "-DTCMALLOC_LARGE_PAGES"
-  LINKSTATIC
+
   PUBLIC
   DEPS ${tcmalloc_deps} 
         "tcmalloc::common_large_pages"
@@ -421,9 +404,11 @@ tcmalloc_cc_library(
         "libc_override_redefine.h"
         "tcmalloc.cc"
         "tcmalloc.h"
+        "internal/memory_stats.cc"
+        "internal/memory_stats.h"
 
   COPTS "-DTCMALLOC_256K_PAGES"
-  LINKSTATIC
+
   PUBLIC
   DEPS ${tcmalloc_deps}
         "tcmalloc::common_256k_pages"
@@ -454,7 +439,6 @@ tcmalloc_cc_library(
         "-DTCMALLOC_256K_PAGES"
         "-DTCMALLOC_NUMA_AWARE"
 
-  LINKSTATIC
   DEPS ${tcmalloc_deps} 
         "tcmalloc::common_256k_pages_and_numa"
   ALWAYSLINK
@@ -490,7 +474,7 @@ tcmalloc_cc_library(
         "tcmalloc.h"
 
   COPTS "-DTCMALLOC_SMALL_BUT_SLOW"
-  LINKSTATIC
+
   PUBLIC
   DEPS ${tcmalloc_deps} 
         "tcmalloc::common_small_but_slow"
@@ -504,7 +488,7 @@ tcmalloc_cc_library(
   COPTS "-DTCMALLOC_SMALL_BUT_SLOW"
   LINKSTATIC
   DEPS ${common_deps}
-  ALWAYSLINK
+#   ALWAYSLINK
 )
 
 # TCMalloc with NUMA awareness compiled in. Note that by default NUMA awareness
@@ -522,7 +506,7 @@ tcmalloc_cc_library(
         "tcmalloc.h"
 
   COPTS "-DTCMALLOC_NUMA_AWARE"
-  LINKSTATIC
+
   DEPS ${tcmalloc_deps}
         "tcmalloc::common_numa_aware"
   ALWAYSLINK
@@ -546,6 +530,7 @@ tcmalloc_cc_library(
         "internal_malloc_extension.h"
         "malloc_extension.h"
   PUBLIC
+  LINKSTATIC
   DEPS 
         "tcmalloc::parameter_accessors"
         "absl::config"

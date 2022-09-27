@@ -16,7 +16,8 @@ include("cmake/tcmalloc_cc_library.cmake")
 # Get Dependencies
 #######################################
 # set(absl_DIR "/root/tcmalloc/abseil-cpp/CMakeFiles/Export/lib/cmake/absl/")
-find_package(absl CONFIG REQUIRED)
+# find_package(absl CONFIG REQUIRED)
+
 
 # Set Tcmalloc specific properties
 #######################################
@@ -25,6 +26,10 @@ set(TCMALLOC_COMMON_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}")
 
 # C++ Standard used by TCMALLOC
 set(TCMALLOC_CXX_STANDARD "17")
+set(CMAKE_CXX_STANDARD "17")
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+add_subdirectory(abseil-cpp)
 
 # Directory into which cmake install script are copied
 set(config_install_dir "lib/cmake/tcmalloc")
@@ -53,4 +58,4 @@ install(
 )
 
 set(LOCAL_GENERATED_INCLUDE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/lib)
-install(EXPORT tcmallocTargets DESTINATION ${config_install_dir} NAMESPACE tcmalloc::)
+# install(EXPORT tcmallocTargets DESTINATION ${config_install_dir} NAMESPACE tcmalloc::)

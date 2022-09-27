@@ -16,6 +16,7 @@ tcmalloc_cc_library(
     NAME "residency"
     HDRS "residency.h"
     SRCS "residency.cc"
+    LINKSTATIC
     DEPS 
         "absl::status"
         "absl::strings"
@@ -47,6 +48,7 @@ tcmalloc_cc_library(
     NAME "environment"
     SRCS "environment.cc"
     HDRS "environment.h"
+    LINKSTATIC
     DEPS "tcmalloc::config"
 )
 
@@ -62,6 +64,8 @@ tcmalloc_cc_library(
         "absl::stacktrace"
         "absl::hash"
         "absl::time"
+        "absl::string"
+        "absl::string_view"
 )
 
 tcmalloc_cc_library(
@@ -98,7 +102,8 @@ tcmalloc_cc_library(
 tcmalloc_cc_library(
     NAME "logging"
     SRCS "logging.cc"
-    HDRS "logging.h"    
+    HDRS "logging.h"  
+    LINKSTATIC  
     DEPS 
         "tcmalloc::config"
         "tcmalloc::parameter_accessors"
@@ -114,12 +119,15 @@ tcmalloc_cc_library(
     NAME "memory_stats"
     SRCS "memory_stats.cc"
     HDRS "memory_stats.h"
+    LINKSTATIC
     DEPS 
         "tcmalloc::config"
         "tcmalloc::logging"
         "tcmalloc::util"
         "absl::strings"
         "absl::optional"
+        "absl::log_internal_format"
+        "absl::str_format_internal"
 )
 
 tcmalloc_cc_library(
@@ -142,6 +150,7 @@ tcmalloc_cc_library(
     NAME "cache_topology"
     SRCS "cache_topology.cc"
     HDRS "cache_topology.h"    
+    LINKSTATIC
     DEPS 
         "tcmalloc::config"
         "tcmalloc::logging"
@@ -155,7 +164,8 @@ tcmalloc_cc_library(
 tcmalloc_cc_library(
     NAME "numa"
     SRCS "numa.cc"
-    HDRS "numa.h"    
+    HDRS "numa.h" 
+    LINKSTATIC   
     DEPS 
         "tcmalloc::config"
         "tcmalloc::environment"
@@ -170,7 +180,8 @@ tcmalloc_cc_library(
 
 tcmalloc_cc_library(
     NAME "optimization"
-    HDRS "optimization.h"    
+    HDRS "optimization.h"   
+    LINKSTATIC 
     DEPS 
         "tcmalloc::logging"
 )
@@ -178,6 +189,7 @@ tcmalloc_cc_library(
 tcmalloc_cc_library(
     NAME "parameter_accessors"
     HDRS "parameter_accessors.h"    
+    LINKSTATIC
     DEPS 
         "absl::core_headers"
         "absl::time"
@@ -191,6 +203,7 @@ tcmalloc_cc_library(
         "percpu_rseq_unsupported.cc"
     HDRS 
       "percpu.h"
+    LINKSTATIC
     DEPS 
         "tcmalloc::atomic_danger"
         "tcmalloc::config"
@@ -206,6 +219,7 @@ tcmalloc_cc_library(
 tcmalloc_cc_library(
     NAME "percpu_tcmalloc"
     HDRS "percpu_tcmalloc.h"
+    LINKSTATIC
     DEPS 
         "tcmalloc::mincore"
         "tcmalloc::percpu"
@@ -259,6 +273,7 @@ tcmalloc_cc_library(
     NAME "util"
     SRCS "util.cc"
     HDRS "util.h"
+    LINKSTATIC
     DEPS 
         "tcmalloc::config"
         "tcmalloc::logging"
