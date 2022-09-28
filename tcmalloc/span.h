@@ -83,6 +83,13 @@ struct escape_chunk {
   // this should be 512 size
 };
 
+// the size of memory allocated from metadata
+// not a cache friendly implementation right now
+// it is a escape for each allocation
+class EscapeChunk {
+  char data[sizeof(struct escape)];
+};
+
 class EscapeTable {
   // TODO: we need a lock here
   // absl::base_internal::SpinLock freelist_lock;
@@ -90,61 +97,113 @@ class EscapeTable {
   struct escape *head = nullptr;
 
   // use the freelist in the same page to improve cache-hit
-  struct escape *freelist = nullptr;
+  // struct escape *freelist = nullptr;
 
   // linked list of escape node allocated
   // this is used when new allocation for escape
   // and free escapes, so put it out of cache line
-  struct escape_chunk *allocated_escape_chunks = nullptr;
+  // struct escape_chunk *allocated_escape_chunks = nullptr;
 
-  inline void init_freelist(struct escape_chunk *chunk) {
-    // init freelist
-    for (int i=0; i<21; i++) {
-      chunk->chunks[i].next = freelist;
-      freelist = &chunk->chunks[i];
+  // inline void init_freelist(struct escape_chunk *chunk) {
+  //   // init freelist
+  //   for (int i=0; i<21; i++) {
+  //     chunk->chunks[i].next = freelist;
+  //     freelist = &chunk->chunks[i];
+  //   }
+  // }
+
+  // inline void delete_escape(struct escape *e) {
+  //   e->next = freelist;
+  //   freelist = e;
+  // }
+  EscapeTable *GetEscapeTable(void *ptr);
+
+ public:
+  void delete_escape(struct escape *e);
+  struct escape* alloc_escape();
+
+  void Destroy() {
+    // by the time of destroy, all the escapes should be removed
+    // otherwise, this is a memory leak.
+    // ASSERT is not enabled by default, so use assert
+    if(head) {
+      printf("escape memory leaked");
+      abort();
     }
   }
 
-  inline void delete_escape(struct escape *e) {
-    e->next = freelist;
-    freelist = e;
-  }
-  struct escape* alloc_escape();
-
- public:
-  void Destroy();
-
   void Free(void *ptr) {
     // free allocated_note
-    struct escape *e = remove(ptr);
+#ifdef PROTECTION_DEBUG
+    Log(kLog, __FILE__, __LINE__, "Freeing ptr ", ptr);
+#endif
+    struct escape *e = remove(&head, ptr);
+
+    if (!e) return;
 
     while (e->escape_list) {
       struct escape *cur = e->escape_list;
       e->escape_list = cur->next;
+
+      if (*(reinterpret_cast<void**>(cur->addr)) == e->addr) {
+#ifdef PROTECTION_DEBUG
+        Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
+#endif
+        *(reinterpret_cast<void**>(cur->addr)) = (void *)0xdeadbeefdeadbeef;
+      }
+
       delete_escape(cur);
     }
     delete_escape(e);
   }
 
-  void Insert(void *loc, void *ptr) {
-    struct escape *e = search(ptr);
-    
-    if (!ptr) {
-      e = alloc_escape();
+  void Insert(void **loc, void *ptr) {
+    struct escape *list;
+    void *old_ptr = *loc;
 
-      e->addr = ptr;
-      e->next = head;
-      head->next = e;
+#ifdef PROTECTION_DEBUG
+    printf("loc %p, old_ptr %p ptr %p\n", loc, *loc, ptr);
+#endif
+
+    if (old_ptr == ptr) return;
+
+    // try to remove escape of old ptr
+    EscapeTable *escape_table_ = GetEscapeTable(old_ptr);
+    if (escape_table_) {
+      struct escape *e = escape_table_->lookup(old_ptr);
+#ifdef PROTECTION_DEBUG
+      printf("got escape table at %p for ptr %p\n", escape_table_, old_ptr);
+#endif
+      if (e) {
+        // remove loc from e->escape_list
+        struct escape *e_loc = escape_table_->remove(&e->escape_list, loc);
+        if (e_loc) {
+          escape_table_->delete_escape(e_loc);
+#ifdef PROTECTION_DEBUG
+          printf("deleted escape %p for old ptr %p\n", e_loc, e_loc);
+#endif
+        }
+      }
+    }
+    
+    if (ptr == 0) return;
+
+    list = lookup(ptr);
+    if (!list) {
+      list = alloc_escape();
+      list->addr = ptr;
+      list->next = head;
+      head = list;
     }
 
-    // init escapes
-    struct escape *val = alloc_escape();
-    val->addr = loc;
-    val->next = e->escape_list;
-    e->escape_list = val;
+    // store the loc into ptr's escapes
+    struct escape *loc_e = alloc_escape();
+    loc_e->addr = reinterpret_cast<void*>(loc);
+    loc_e->next = list->escape_list;
+    list->escape_list = loc_e;
   }
 
-  struct escape* search(void *ptr) {
+  struct escape* lookup(void *ptr) {
     struct escape *cur = head;
     while (cur) {
       if (cur->addr == ptr) {
@@ -155,9 +214,9 @@ class EscapeTable {
     return cur;
   }
 
-  struct escape* remove(void *ptr) {
+  struct escape* remove(struct escape **list, void *ptr) {
     struct escape *pre, *cur;
-    for (cur=head; cur; cur = cur->next) {
+    for (pre=nullptr, cur=*list; cur; cur = cur->next) {
       if (cur->addr == ptr) {
         break;
       }
@@ -166,7 +225,7 @@ class EscapeTable {
 
     if (cur) {
       if (pre == nullptr) {
-        head = cur->next;
+        *list = cur->next;
       } else {
         pre->next = cur->next;
       }
@@ -329,7 +388,11 @@ class Span : public SpanList::Elem {
   // Prefetch cacheline containing most important span information.
   void Prefetch();
 
+  EscapeTable* GetEscapeTable() { return &escape_table; }
+  // Length GetObjSize() { return obj_size; }
+
   static constexpr size_t kCacheSize = 4;
+  size_t obj_size;
 
  private:
   // See the comment on freelist organization in cc file.
@@ -692,7 +755,7 @@ inline void Span::Prefetch() {
 #else
   // The Span can occupy two cache lines, so prefetch the cacheline with the
   // most frequently accessed parts of the Span.
-  static_assert(sizeof(Span) == 72, "Update span prefetch offset");
+  static_assert(sizeof(Span) == 64, "Update span prefetch offset");
   __builtin_prefetch(&this->allocated_, 0, 3);
 #endif
 #endif

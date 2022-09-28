@@ -209,7 +209,10 @@ Span* HugePageAwareAllocator::Finalize(Length n, size_t num_objects,
     ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock) {
   ASSERT(page != PageId{0});
   Span* ret = Span::New(page, n);
-  tc_globals.pagemap().Set(page, ret);
+  for (Length i = Length(0); i < n; ++i) {
+    tc_globals.pagemap().Set(page + i, ret);
+  }
+  // tc_globals.pagemap().Set(page, ret);
   ASSERT(!ret->sampled());
   info_.RecordAlloc(page, n, num_objects);
   tc_globals.page_allocator().ShrinkToUsageLimit();
@@ -459,6 +462,8 @@ void HugePageAwareAllocator::Delete(Span* span, size_t objects_per_span) {
   Span::Delete(span);
   // Clear the descriptor of the page so a second pass through the same page
   // could trigger the check on `span != nullptr` in do_free_pages.
+  
+  // TODO
   tc_globals.pagemap().Set(p, nullptr);
 
   // The tricky part, as with so many allocators: where did we come from?

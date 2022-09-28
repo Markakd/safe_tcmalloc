@@ -36,9 +36,12 @@ namespace tcmalloc_internal {
 
 // Helper function to record span address into pageheap
 void PageHeap::RecordSpan(Span* span) {
-  pagemap_->Set(span->first_page(), span);
-  if (span->num_pages() > Length(1)) {
-    pagemap_->Set(span->last_page(), span);
+  // pagemap_->Set(span->first_page(), span);
+  // if (span->num_pages() > Length(1)) {
+  //   pagemap_->Set(span->last_page(), span);
+  // }
+  for (PageId p = span->first_page(); p <= span->last_page(); ++p) {
+    pagemap_->Set(p, span);
   }
 }
 

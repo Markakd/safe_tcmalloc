@@ -57,6 +57,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <algorithm>
 #include <atomic>
@@ -721,7 +722,10 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
       const PageId p = PageIdContaining(guarded_alloc);
       absl::base_internal::SpinLockHolder h(&pageheap_lock);
       span = Span::New(p, num_pages);
-      tc_globals.pagemap().Set(p, span);
+      for (Length i=Length(0); i<num_pages; ++i) {
+        tc_globals.pagemap().Set(p+i, span);
+      }
+      // tc_globals.pagemap().Set(p, span);
       // If we report capacity back from a size returning allocation, we can not
       // report the allocated_size, as we guard the size to 'requested_size',
       // and we maintain the invariant that GetAllocatedSize() must match the
@@ -792,6 +796,7 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
   // No pageheap_lock required. The span is freshly allocated and no one else
   // can access it. It is visible after we return from this allocation path.
   span->Sample(sampled_allocation);
+  span->obj_size = allocated_size;
 
   tc_globals.peak_heap_tracker().MaybeSaveSample();
 
@@ -972,6 +977,25 @@ static size_t GetSizeClass(void* ptr) {
 }
 #endif
 
+inline size_t GetSize(const void* ptr) {
+  if (ptr == nullptr) return 0;
+  const PageId p = PageIdContaining(ptr);
+  size_t size_class = tc_globals.pagemap().sizeclass(p);
+  if (size_class != 0) {
+    return tc_globals.sizemap().class_to_size(size_class);
+  } else {
+    const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
+    if (span->sampled()) {
+      if (tc_globals.guardedpage_allocator().PointerIsMine(ptr)) {
+        return tc_globals.guardedpage_allocator().GetRequestedSize(ptr);
+      }
+      return span->sampled_allocation()->sampled_stack.allocated_size;
+    } else {
+      return span->bytes_in_span();
+    }
+  }
+}
+
 // Helper for the object deletion (free, delete, etc.).  Inputs:
 //   ptr is object to be freed
 //   size_class is the size class of that object, or 0 if it's unknown
@@ -1004,6 +1028,37 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
   // ptr must be a result of a previous malloc/memalign/... call, and
   // therefore static initialization must have already occurred.
   ASSERT(tc_globals.IsInited());
+
+  // #ifdef ENABLE_PROTECTION
+  Span* span_ = tc_globals.pagemap().GetDescriptor(p);
+  if (span_) {
+    // check if is invalid free
+    // if sizeclass is 0, then the span is dedicated to the page
+    // the check is done in the following.
+    // fixme
+    size_t obj_size = GetSize(ptr);
+    CHECK_CONDITION(obj_size != 0);
+    size_t start_addr = (size_t)span_->start_address();
+    if (((size_t)ptr - start_addr) % obj_size != 0) {
+        // (*invalid_free_fn)(ptr);
+        // Log(kCrash, __FILE__, __LINE__,
+        //   "double/invalid free detected");
+      printf("invalid free for ptr %p detected\n", ptr);
+      return;
+    }
+    // free all escapes to p
+    span_->GetEscapeTable()->Free(ptr);
+  } else {
+    if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
+      // Log(kCrash, __FILE__, __LINE__,
+      //   "double/invalid free detected");
+      printf("double/invalid free detected\n");
+      return;
+    }
+    printf("freeing a pointer with no span %p\n", ptr);
+    return;
+  }
+// #endif
 
   if (!have_size_class) {
     size_class = tc_globals.pagemap().sizeclass(p);
@@ -1042,6 +1097,8 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
                                                            AlignPolicy align) {
   ASSERT(CorrectSize(ptr, size, align));
   ASSERT(CorrectAlignment(ptr, static_cast<std::align_val_t>(align.align())));
+
+// TODO:
 
   // This is an optimized path that may be taken if the binary is compiled
   // with -fsized-delete. We attempt to discover the size class cheaply
@@ -1094,25 +1151,6 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
   }
 
   return do_free_with_size_class<true, Hooks::RUN>(ptr, size_class);
-}
-
-inline size_t GetSize(const void* ptr) {
-  if (ptr == nullptr) return 0;
-  const PageId p = PageIdContaining(ptr);
-  size_t size_class = tc_globals.pagemap().sizeclass(p);
-  if (size_class != 0) {
-    return tc_globals.sizemap().class_to_size(size_class);
-  } else {
-    const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
-    if (span->sampled()) {
-      if (tc_globals.guardedpage_allocator().PointerIsMine(ptr)) {
-        return tc_globals.guardedpage_allocator().GetRequestedSize(ptr);
-      }
-      return span->sampled_allocation()->sampled_stack.allocated_size;
-    } else {
-      return span->bytes_in_span();
-    }
-  }
 }
 
 // Checks that an asserted object size for <ptr> is valid.
@@ -1197,20 +1235,65 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // TCMALLOC_HAVE_STRUCT_MALLINFO
 
-int do_check_boundary(void *ptr, __int64_t size) noexcept {
+int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
   const PageId p = PageIdContaining(ptr);
+#if 1
+  Span* span = tc_globals.pagemap().GetDescriptor(p);
+  if (!span) {
+    // printf("no span ");
+    return -1;
+  }
+
+  // size_t obj_size = span->obj_size;
+  // if (obj_size == 0) {
+  //   obj_size = span->bytes_in_span();
+  //   span->obj_size = obj_size;
+  // }
+
+  // CHECK_CONDITION(obj_size == GetSize(ptr));
   size_t obj_size = GetSize(ptr);
 
-  // FIXME: size_class could be 0, then p.start_addr couldn't be used.
-  // see GetSize
+  size_t start_addr = (size_t)span->start_address();
 
-  // let compiler do the optimization
-  signed long offset = ((unsigned long)ptr - (unsigned long)p.start_addr()) % obj_size;
-  if (offset + size >= 0 && offset + size <= obj_size) {
-    // we are good
+  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_end = chunk_start + obj_size;
+#else
+  size_t start_addr = (size_t)p.start_addr();
+  size_t size_class = tc_globals.pagemap().sizeclass(p);
+  size_t obj_size = 0x20000;
+
+  // const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
+  // CHECK_CONDITION(span->start_address() == p.start_addr());
+
+  if (size_class != 0) {
+    obj_size = tc_globals.sizemap().class_to_size(size_class);
+  } else {
+    // printf("no size class\n");
+    const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
+    if (span->sampled()) {
+      // if (tc_globals.guardedpage_allocator().PointerIsMine(base)) {
+      //   obj_size = tc_globals.guardedpage_allocator().GetRequestedSize(base);
+      // }
+      obj_size = span->sampled_allocation()->sampled_stack.allocated_size;
+    } else {
+      obj_size = span->bytes_in_span();
+    }
+    start_addr = (size_t)span->start_address();
   }
-  printf("oob found\n");
-  abort();
+  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_end = chunk_start + obj_size;
+#endif
+  if ((size_t)ptr >= chunk_start && ((size_t)ptr + size) <= chunk_end) {
+    return 0;
+  }
+
+  // printf("base %p, ptr %p, size %lx; chunk start %llx, chunk end %llx, size %lx\n", base, ptr, size, chunk_start, chunk_end, obj_size);
+  // printf("span start %lx, size class %lx, simple %d length %lx\n", span->start, span->sizeclass, span->sample, span->length);
+  
+  // Log(kCrash, __FILE__, __LINE__, "oob detected");
+  // printf("oob detected\n");
+  return -1;
+
 }
 
 void do_escape(
@@ -1218,8 +1301,16 @@ void do_escape(
   // store pointer new into loc
   // so loc will point to new
   // find span of new and then add to the list
+  if (ptr == 0)
+    return;
+
   const PageId p = PageIdContaining(ptr);
   Span* span = tc_globals.pagemap().GetDescriptor(p);
+  if (!span) {
+    return;
+  }
+
+  span->GetEscapeTable()->Insert(loc, ptr);
 }
 
 }  // namespace
@@ -1582,8 +1673,8 @@ extern "C" void* TCMallocInternalRealloc(void* old_ptr,
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalCheckBoundary(
-    void *ptr, __int64_t size) noexcept {
-  return do_check_boundary(ptr, size);
+    void *base, void *ptr, size_t size) noexcept {
+  return do_check_boundary(base, ptr, size);
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(

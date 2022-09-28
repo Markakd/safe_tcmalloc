@@ -70,7 +70,7 @@ int __posix_memalign(void** r, size_t a, size_t s) noexcept
     TCMALLOC_ALIAS(TCMallocInternalPosixMemalign);
 
 // #ifdef SAFE_GUARD
-int __check_boundary(void* ptr, __int64_t size) noexcept
+int __check_boundary(void *base, void* ptr, size_t size) noexcept
     TCMALLOC_ALIAS(TCMallocInternalCheckBoundary);
 
 void __escape(void** loc, void* ptr) noexcept

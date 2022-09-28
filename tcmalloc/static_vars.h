@@ -118,8 +118,8 @@ class Static final {
     return threadcache_allocator_;
   }
 
-  static PageHeapMetaDataAllocator& heap_metadata_allocator() {
-    return heap_metadata_allocator_;
+  static PageHeapAllocator<EscapeChunk>& escape_allocator() {
+    return escape_allocator_;
   }
 
   static SampledAllocationRecorder& sampled_allocation_recorder() {
@@ -194,6 +194,7 @@ class Static final {
   static SampledAllocationAllocator sampledallocation_allocator_;
   static PageHeapAllocator<Span> span_allocator_;
   static PageHeapAllocator<ThreadCache> threadcache_allocator_;
+  static PageHeapAllocator<EscapeChunk> escape_allocator_;
   static PageHeapAllocator<StackTraceTable::Bucket> bucket_allocator_;
   static PageHeapMetaDataAllocator heap_metadata_allocator_;
   ABSL_CONST_INIT static std::atomic<bool> inited_;

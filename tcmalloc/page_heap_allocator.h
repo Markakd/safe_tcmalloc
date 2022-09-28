@@ -88,6 +88,9 @@ class PageHeapAllocator {
 };
 
 // the metadata is 512 bytes for each allocation
+// the allocator blow is intended to avoid acquiring
+// the pageheap lock, thus avoid slowing down the 
+// multi-thread performance. This is not used for now.
 class PageHeapMetaDataAllocator {
   public:
 

@@ -33,7 +33,7 @@
 
 extern "C" {
 #endif
-int TCMallocInternalCheckBoundary(void* ptr, __int64_t size) noexcept
+int TCMallocInternalCheckBoundary(void *base, void* ptr, size_t size) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
 void TCMallocInternalEscape(void **loc, void* ptr) noexcept

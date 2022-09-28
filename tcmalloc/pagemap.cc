@@ -32,6 +32,7 @@ void PageMap::RegisterSizeClass(Span* span, size_t sc) {
   for (PageId p = first; p <= last; ++p) {
     map_.set_with_sizeclass(p.index(), span, sc);
   }
+  span->obj_size = tc_globals.sizemap().class_to_size(sc);
 }
 
 void PageMap::UnregisterSizeClass(Span* span) {
@@ -42,6 +43,7 @@ void PageMap::UnregisterSizeClass(Span* span) {
   for (PageId p = first; p <= last; ++p) {
     map_.clear_sizeclass(p.index());
   }
+  span->obj_size = 0;
 }
 
 void PageMap::MapRootWithSmallPages() {

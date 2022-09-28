@@ -34,35 +34,30 @@ namespace tcmalloc {
 namespace tcmalloc_internal {
 
 struct escape* EscapeTable::alloc_escape() {
-  struct escape *ret;
-  assert(0);
-  if (!freelist) {
-    // memory is 512 size
-    void *mem = tc_globals.heap_metadata_allocator().Alloc();
-    struct escape_chunk *new_chunk = static_cast<struct escape_chunk*>(mem);
-    new_chunk->next = allocated_escape_chunks;
-    allocated_escape_chunks = new_chunk;
-    init_freelist(new_chunk);
-  }
-
-  assert(freelist != nullptr);
-  ret = freelist;
-  freelist = freelist->next;
-  memset(ret, 0, sizeof(*ret));
-
-  return ret;
+#ifdef PROTECTION_DEBUG
+  Log(kLog, __FILE__, __LINE__, "alloc escape");
+#endif
+  struct escape *e = reinterpret_cast<struct escape *>(Static::escape_allocator().New());
+  memset(e, 0, sizeof(*e));
+  return e;
 }
 
-void EscapeTable::Destroy() {
-  // clean the memory used
-  assert(head == nullptr);
-  while (allocated_escape_chunks) {
-    struct escape_chunk *cur = allocated_escape_chunks;
-    allocated_escape_chunks = cur->next;
+void EscapeTable::delete_escape(struct escape *e) {
+#ifdef PROTECTION_DEBUG
+  Log(kLog, __FILE__, __LINE__, "delete escape");
+#endif
+  Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
+}
 
-    void *mem = static_cast<void *>(cur);
-    tc_globals.heap_metadata_allocator().Delete(mem);
+EscapeTable* EscapeTable::GetEscapeTable(void *ptr) {
+// #ifdef ENABLE_PROTECTION
+  const PageId p = PageIdContaining(ptr);
+  Span *span = tc_globals.pagemap().GetDescriptor(p);
+  if (span) {
+    return span->GetEscapeTable();
   }
+  return nullptr;
+// #endif
 }
 
 void Span::Sample(SampledAllocation* sampled_allocation) {
