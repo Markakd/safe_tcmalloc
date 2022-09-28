@@ -73,7 +73,7 @@ class PageMap2 {
     // information.  The size class information is kept segregated
     // since small object deallocations are so frequent and do not
     // need the other information kept in a Span.
-    CompactSizeClass sizeclass[kLeafLength];
+    size_t sizeclass[kLeafLength];
     Span* span[kLeafLength];
     void* hugepage[kLeafHugepages];
   };
@@ -128,6 +128,16 @@ class PageMap2 {
     const Number i2 = k & (kLeafLength - 1);
     ASSERT((k >> BITS) == 0);
     ASSERT(root_[i1] != nullptr);
+    size_t sc = root_[i1]->sizeclass[i2];
+    return (CompactSizeClass)(sc & (CompactSizeClass)(-1));
+  }
+
+  size_t ABSL_ATTRIBUTE_ALWAYS_INLINE
+  get_page_info(Number k) const ABSL_NO_THREAD_SAFETY_ANALYSIS {
+    const Number i1 = k >> kLeafBits;
+    const Number i2 = k & (kLeafLength - 1);
+    ASSERT((k >> BITS) == 0);
+    ASSERT(root_[i1] != nullptr);
     return root_[i1]->sizeclass[i2];
   }
 
@@ -144,7 +154,10 @@ class PageMap2 {
     const Number i2 = k & (kLeafLength - 1);
     Leaf* leaf = root_[i1];
     leaf->span[i2] = s;
-    leaf->sizeclass[i2] = sc;
+
+    size_t new_sc = s->first_page().index() << (sizeof(CompactSizeClass) * 8);
+    new_sc = new_sc | (CompactSizeClass)(sc);
+    leaf->sizeclass[i2] = new_sc;
   }
 
   void clear_sizeclass(Number k) {
@@ -308,6 +321,9 @@ class PageMap3 {
     return root_[i1]->leafs[i2]->sizeclass[i3];
   }
 
+  size_t ABSL_ATTRIBUTE_ALWAYS_INLINE
+  get_page_info(Number k) const ABSL_NO_THREAD_SAFETY_ANALYSIS {return 0;}
+
   void set(Number k, Span* s) {
     ASSERT(k >> BITS == 0);
     const Number i1 = k >> (kLeafBits + kMidBits);
@@ -404,6 +420,10 @@ class PageMap {
   // under TSan.
   CompactSizeClass sizeclass(PageId p) ABSL_NO_THREAD_SAFETY_ANALYSIS {
     return map_.sizeclass(p.index());
+  }
+
+  size_t get_page_info(PageId p) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+    return map_.get_page_info(p.index());
   }
 
   void Set(PageId p, Span* span) { map_.set(p.index(), span); }

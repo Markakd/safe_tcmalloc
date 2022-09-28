@@ -798,6 +798,10 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
   span->Sample(sampled_allocation);
   span->obj_size = allocated_size;
 
+  // if we register the size class here, tcmalloc crashes
+  // if (size_class != 0)
+  //   tc_globals.pagemap().RegisterSizeClass(span, size_class);
+
   tc_globals.peak_heap_tracker().MaybeSaveSample();
 
   if (obj != nullptr) {
@@ -850,6 +854,10 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
   if (size_t weight = ShouldSampleAllocation(size)) {
     CHECK_CONDITION(result == SampleifyAllocation(policy, size, weight, 0,
                                                   nullptr, span, capacity));
+  }
+
+  if (span->obj_size == 0) {
+    span->obj_size = span->bytes_in_span();
   }
 
   return result;
@@ -956,7 +964,7 @@ static void do_free_pages(void* ptr, const PageId p) {
       } else if (IsColdMemory(ptr)) {
         ASSERT(reinterpret_cast<uintptr_t>(ptr) % kPageSize == 0);
         tc_globals.page_allocator().Delete(span, 1, MemoryTag::kCold);
-      } else {
+    } else {
         ASSERT(reinterpret_cast<uintptr_t>(ptr) % kPageSize == 0);
         tc_globals.page_allocator().Delete(span, 1, MemoryTag::kSampled);
       }
@@ -1037,6 +1045,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     // the check is done in the following.
     // fixme
     size_t obj_size = GetSize(ptr);
+    CHECK_CONDITION(obj_size == span_->obj_size);
     CHECK_CONDITION(obj_size != 0);
     size_t start_addr = (size_t)span_->start_address();
     if (((size_t)ptr - start_addr) % obj_size != 0) {
@@ -1235,63 +1244,54 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // TCMALLOC_HAVE_STRUCT_MALLINFO
 
+// If we consult the span then retrieve the obj_size and start address, it will
+// invoke 4 memory access: first find span from the map (2 accesses), then obj_size
+// and start address in the span. This is expensive because the span is not hot thus
+// the two access to span invokes ~50% of overhead.
+
+// we will use sizeclass instead, with some tweaks on the page table. Now the
+// sizeclass page table also contains the start page of the span.
+
 int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
-  const PageId p = PageIdContaining(ptr);
-#if 1
-  Span* span = tc_globals.pagemap().GetDescriptor(p);
-  if (!span) {
-    // printf("no span ");
-    return -1;
+  const PageId p = PageIdContaining(base);
+  size_t start_addr, obj_size;
+  Span *span;
+
+// #define OBJ_SIZE_DEBUG
+#ifdef OBJ_SIZE_DEBUG
+  span = tc_globals.pagemap().GetExistingDescriptor(p);
+  CHECK_CONDITION(span->obj_size != 0);
+  CHECK_CONDITION(span->obj_size = GetSize(base));
+
+  size_t raw_data = tc_globals.pagemap().get_page_info(p);
+  if (raw_data) {
+    CHECK_CONDITION((raw_data >> 8) == span->first_page().index());
   }
+#endif
 
-  // size_t obj_size = span->obj_size;
-  // if (obj_size == 0) {
-  //   obj_size = span->bytes_in_span();
-  //   span->obj_size = obj_size;
-  // }
-
-  // CHECK_CONDITION(obj_size == GetSize(ptr));
-  size_t obj_size = GetSize(ptr);
-
-  size_t start_addr = (size_t)span->start_address();
-
-  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
-  size_t chunk_end = chunk_start + obj_size;
-#else
-  size_t start_addr = (size_t)p.start_addr();
-  size_t size_class = tc_globals.pagemap().sizeclass(p);
-  size_t obj_size = 0x20000;
-
-  // const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
-  // CHECK_CONDITION(span->start_address() == p.start_addr());
-
+  size_t page_info = tc_globals.pagemap().get_page_info(p);
+  size_t size_class = page_info & (CompactSizeClass)(-1);
   if (size_class != 0) {
     obj_size = tc_globals.sizemap().class_to_size(size_class);
+    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
   } else {
-    // printf("no size class\n");
-    const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
-    if (span->sampled()) {
-      // if (tc_globals.guardedpage_allocator().PointerIsMine(base)) {
-      //   obj_size = tc_globals.guardedpage_allocator().GetRequestedSize(base);
-      // }
-      obj_size = span->sampled_allocation()->sampled_stack.allocated_size;
-    } else {
-      obj_size = span->bytes_in_span();
+    span = tc_globals.pagemap().GetDescriptor(p);
+    if (!span) {
+      printf("no span\n");
+      return 1;
     }
+    obj_size = span->obj_size;
     start_addr = (size_t)span->start_address();
   }
+
   size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
-#endif
+
   if ((size_t)ptr >= chunk_start && ((size_t)ptr + size) <= chunk_end) {
     return 0;
   }
 
-  // printf("base %p, ptr %p, size %lx; chunk start %llx, chunk end %llx, size %lx\n", base, ptr, size, chunk_start, chunk_end, obj_size);
-  // printf("span start %lx, size class %lx, simple %d length %lx\n", span->start, span->sizeclass, span->sample, span->length);
-  
-  // Log(kCrash, __FILE__, __LINE__, "oob detected");
-  // printf("oob detected\n");
+  printf("oob detected\n");
   return -1;
 
 }
