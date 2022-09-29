@@ -95,6 +95,7 @@ int main() {
   }
   tracked_free(global);
   tracked_free(global_escapes);
+  tracked_free(global_size);
   end = clock();
   time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
   printf("time spent for free is %f s\n\n", time_spent);
