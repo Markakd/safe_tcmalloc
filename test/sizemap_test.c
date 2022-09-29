@@ -12,13 +12,13 @@ void *tracked_malloc(size_t sz);
 void tracked_free(void* p);
 #else
 #ifdef CAMP_RUNTIME
-int __check_boundary(void *, void *, size_t);
+int __gep_check_boundary(void *, void *, size_t);
 void __escape(void **, void *);
 #endif
 
 static __always_inline int texas_check_boundary(void *base, void *ptr, size_t size) {
 #ifdef CAMP_RUNTIME
-  return __check_boundary(base, ptr, size);
+  return __gep_check_boundary(base, ptr, size);
 #else
   return 0;
 #endif

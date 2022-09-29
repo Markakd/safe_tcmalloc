@@ -69,14 +69,20 @@ void* __libc_pvalloc(size_t size) noexcept
 int __posix_memalign(void** r, size_t a, size_t s) noexcept
     TCMALLOC_ALIAS(TCMallocInternalPosixMemalign);
 
-int __check_boundary(void *base, void* ptr, size_t size) noexcept
-    TCMALLOC_ALIAS(TCMallocInternalCheckBoundary);
+int __gep_check_boundary(void *base, void* ptr, size_t size) noexcept
+    TCMALLOC_ALIAS(TCMallocInternalGepCheckBoundary);
+int __bc_check_boundary(void *base, size_t size) noexcept
+    TCMALLOC_ALIAS(TCMallocInternalBcCheckBoundary);
 
 void __escape(void** loc, void* ptr) noexcept
     TCMALLOC_ALIAS(TCMallocInternalEscape);
 
 void __report_statistic() noexcept
     TCMALLOC_ALIAS(TCReportStatistic);
+void __report_error() noexcept
+    TCMALLOC_ALIAS(TCReportError);
+int64_t __get_chunk_size(void*) noexcept
+    TCMALLOC_ALIAS(TCGetChunkSize);
 }  // extern "C"
 
 #endif  // #if defined(__GNUC__) && !defined(__MACH__)

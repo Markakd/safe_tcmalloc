@@ -9,7 +9,7 @@
 void *ptr[MEM_SIZE];
 void *ptr_escape[MEM_SIZE];
 
-int __check_boundary(void *, void *, size_t);
+int __gep_check_boundary(void *, void *, size_t);
 
 void test_invalid_free() {
   void *p;
@@ -30,22 +30,22 @@ void test_check_boundary() {
   p = malloc(75);
   printf("got ptr %p\n", p);
   // this should be ok
-  assert(__check_boundary(p, p, 80) == 0);
+  assert(__gep_check_boundary(p, p, 80) == 0);
   // p[79] = 1;
 
-  assert(__check_boundary(p, p-3, 5) == -1);
-  assert(__check_boundary(p, p-4, 1) == -1);
+  assert(__gep_check_boundary(p, p-3, 5) == -1);
+  assert(__gep_check_boundary(p, p-4, 1) == -1);
 
   // this should fail
-  assert(__check_boundary(p, p-1, 1) == -1);
+  assert(__gep_check_boundary(p, p-1, 1) == -1);
   // p[-1] = 0;
 
-  assert(__check_boundary(p, p, 81) == -1);
+  assert(__gep_check_boundary(p, p, 81) == -1);
   // p[80] = 1;
   free(p);
 
   p = malloc(0x2000);
-  assert(__check_boundary(p, p, 0x2001) == -1);
+  assert(__gep_check_boundary(p, p, 0x2001) == -1);
   // p[0x2000] = 1;
   free(p);
 }

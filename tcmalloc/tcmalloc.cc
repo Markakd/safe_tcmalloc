@@ -1302,7 +1302,7 @@ inline struct mallinfo do_mallinfo() {
 // return 0 for valid access
 // return -1 for invalid access
 // return 1 for non-heap memory
-static inline int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
+static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noexcept {
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span *span;
@@ -1353,6 +1353,60 @@ static inline int do_check_boundary(void *base, void *ptr, size_t size) noexcept
   return -1;
 }
 
+// return 0 for valid access
+// return -1 for invalid access
+// return 1 for non-heap memory
+static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
+  const PageId p = PageIdContaining(base);
+  size_t start_addr, obj_size;
+  Span *span;
+
+// #define OBJ_SIZE_DEBUG
+#ifdef OBJ_SIZE_DEBUG
+  span = tc_globals.pagemap().GetExistingDescriptor(p);
+  CHECK_CONDITION(span->obj_size != 0);
+  CHECK_CONDITION(span->obj_size = GetSize(base));
+
+  size_t raw_data = tc_globals.pagemap().get_page_info(p);
+  if (raw_data) {
+    CHECK_CONDITION((raw_data >> 8) == span->first_page().index());
+  }
+#endif
+
+  size_t page_info = tc_globals.pagemap().get_page_info(p);
+  size_t size_class = page_info & (CompactSizeClass)(-1);
+  if (size_class != 0) {
+    obj_size = tc_globals.sizemap().class_to_size(size_class);
+    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  } else {
+    span = tc_globals.pagemap().GetDescriptor(p);
+    if (!span) {
+      return 1;
+    }
+    obj_size = span->obj_size;
+    start_addr = (size_t)span->start_address();
+  }
+
+  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_end = chunk_start + obj_size;
+
+#ifdef PROTECTION_DEBUG
+  printf("start_addr 0x%lx, objsize %ld, chunk range [%lx-%lx], base %p, access range [%p-0x%lx]\n",
+          start_addr, obj_size, chunk_start, chunk_end, base, base, size+(size_t)base);
+#endif
+
+  if ((size_t)base >= chunk_start && ((size_t)base + size) <= chunk_end) {
+    return 0;
+  }
+
+  Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#ifdef CRASH_ON_CORRUPTION
+  abort();
+#endif
+
+  return -1;
+}
+
 static inline void do_escape(
     void **loc, void* ptr) noexcept {
   // store pointer new into loc
@@ -1370,12 +1424,57 @@ static inline void do_escape(
   span->GetEscapeTable()->Insert(loc, ptr);
 }
 
+static inline void do_report_error() noexcept {
+    Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#ifdef CRASH_ON_CORRUPTION
+  abort();
+#endif
+}
+
+static inline int64_t do_get_chunk_size(void* base) noexcept {
+  const PageId p = PageIdContaining(base);
+  size_t start_addr, obj_size;
+  Span *span;
+
+// #define OBJ_SIZE_DEBUG
+#ifdef OBJ_SIZE_DEBUG
+  span = tc_globals.pagemap().GetExistingDescriptor(p);
+  CHECK_CONDITION(span->obj_size != 0);
+  CHECK_CONDITION(span->obj_size = GetSize(base));
+
+  size_t raw_data = tc_globals.pagemap().get_page_info(p);
+  if (raw_data) {
+    CHECK_CONDITION((raw_data >> 8) == span->first_page().index());
+  }
+#endif
+
+  size_t page_info = tc_globals.pagemap().get_page_info(p);
+  size_t size_class = page_info & (CompactSizeClass)(-1);
+  if (size_class != 0) {
+    obj_size = tc_globals.sizemap().class_to_size(size_class);
+    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  } else {
+    span = tc_globals.pagemap().GetDescriptor(p);
+    if (!span) {
+      return 1;
+    }
+    obj_size = span->obj_size;
+    start_addr = (size_t)span->start_address();
+  }
+
+  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_end = chunk_start + obj_size;
+
+  return chunk_end - (size_t)base;
+}
+
 static inline void do_report_statistic() {
 #ifdef ENABLE_STATISTIC
   printf("\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
   printf("free count\t: %ld\n", tc_globals.free_cnt);
   printf("escape count\t: %ld\n", tc_globals.escape_cnt);
-  printf("check count\t: %ld\n", tc_globals.check_cnt);
+  printf("gep check count\t: %ld\n", tc_globals.gep_check_cnt);
+  printf("bc check count\t: %ld\n", tc_globals.bc_check_cnt);
 #endif
 }
 
@@ -1404,8 +1503,11 @@ using tcmalloc::tcmalloc_internal::tc_globals;
 using tcmalloc::tcmalloc_internal::UsePerCpuCache;
 
 // export safe function
-using tcmalloc::tcmalloc_internal::do_check_boundary;
+using tcmalloc::tcmalloc_internal::do_gep_check_boundary;
+using tcmalloc::tcmalloc_internal::do_bc_check_boundary;
 using tcmalloc::tcmalloc_internal::do_escape;
+using tcmalloc::tcmalloc_internal::do_get_chunk_size;
+using tcmalloc::tcmalloc_internal::do_report_error;
 using tcmalloc::tcmalloc_internal::do_report_statistic;
 
 #ifdef TCMALLOC_DEPRECATED_PERTHREAD
@@ -1742,17 +1844,39 @@ extern "C" void* TCMallocInternalRealloc(void* old_ptr,
   return do_realloc(old_ptr, new_size);
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalCheckBoundary(
+extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalGepCheckBoundary(
     void *base, void *ptr, size_t size) noexcept {
 #ifdef ENABLE_STATISTIC
-  tc_globals.check_cnt++;
+  tc_globals.gep_check_cnt++;
 #endif
 
 #ifdef ENABLE_PROTECTION
-  return do_check_boundary(base, ptr, size);
+  return do_gep_check_boundary(base, ptr, size);
 #else
   return 0;
 #endif
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalBcCheckBoundary(
+    void *base, size_t size) noexcept {
+#ifdef ENABLE_STATISTIC
+  tc_globals.bc_check_cnt++;
+#endif
+#ifdef ENABLE_PROTECTION
+  return do_bc_check_boundary(base, size);
+#else
+  return 0;
+#endif
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void TCReportError() noexcept {
+#ifdef ENABLE_PROTECTION
+  do_report_error();
+#endif
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED int64_t TCGetChunkSize(void* base) noexcept {
+  return do_get_chunk_size(base);
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(

@@ -5,7 +5,7 @@
 #include <string.h>
 #include <time.h>
 
-int __check_boundary(void *, void *, size_t);
+int __gep_check_boundary(void *, void *, size_t);
 
 #define MAX_SIZE 0x300000
 #define MIN_SIZE 0x30000
@@ -25,6 +25,6 @@ int main() {
     size_t tail = MAX_SIZE - offset;
     assert(data+offset <= data+MAX_SIZE);
     assert(data+offset >= data);
-    __check_boundary(data+offset, data+offset, tail-1);
+    __gep_check_boundary(data+offset, data+offset, tail-1);
   }
 }

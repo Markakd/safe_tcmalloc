@@ -176,7 +176,8 @@ class Static final {
   static size_t malloc_cnt;
   static size_t free_cnt;
   static size_t escape_cnt;
-  static size_t check_cnt;
+  static size_t gep_check_cnt;
+  static size_t bc_check_cnt;
 #endif
 
  private:
