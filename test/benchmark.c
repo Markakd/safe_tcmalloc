@@ -82,7 +82,7 @@ int main() {
     assert(global_size[x] != 0);
     size_t offset = rand() % global_size[x];
     texas_check_boundary(global[x] + offset, global[x] + offset, MIN_SIZE);
-    // memset(global[x], 0, MIN_SIZE);
+    memset(global[x] + offset, 0, MIN_SIZE);
   }
   end = clock();
   time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
@@ -91,7 +91,6 @@ int main() {
   // free test
   begin = clock();
   for (int i=0; i<ALLOC_SIZE; i++) {
-    // if (i % 0x1000 == 0) printf("%x\n", i);
     tracked_free(global[i]);
   }
   tracked_free(global);
