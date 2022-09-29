@@ -1037,6 +1037,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
   // therefore static initialization must have already occurred.
   ASSERT(tc_globals.IsInited());
 
+#ifdef ENABLE_STATISTIC
+  tc_globals.free_cnt++;
+#endif
+
 #ifdef ENABLE_PROTECTION
   Span* span_ = tc_globals.pagemap().GetDescriptor(p);
   if (span_) {
@@ -1110,6 +1114,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
                                                            AlignPolicy align) {
   ASSERT(CorrectSize(ptr, size, align));
   ASSERT(CorrectAlignment(ptr, static_cast<std::align_val_t>(align.align())));
+
+#ifdef ENABLE_STATISTIC
+  tc_globals.free_cnt++;
+#endif
 
 #ifdef ENABLE_PROTECTION
   PageId p = PageIdContaining(ptr);
@@ -1291,7 +1299,10 @@ inline struct mallinfo do_mallinfo() {
 // we will use sizeclass instead, with some tweaks on the page table. Now the
 // sizeclass page table also contains the start page of the span.
 
-int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
+// return 0 for valid access
+// return -1 for invalid access
+// return 1 for non-heap memory
+static inline int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span *span;
@@ -1342,7 +1353,7 @@ int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
   return -1;
 }
 
-void do_escape(
+static inline void do_escape(
     void **loc, void* ptr) noexcept {
   // store pointer new into loc
   // so loc will point to new
@@ -1357,6 +1368,15 @@ void do_escape(
   }
 
   span->GetEscapeTable()->Insert(loc, ptr);
+}
+
+static inline void do_report_statistic() {
+#ifdef ENABLE_STATISTIC
+  printf("\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
+  printf("free count\t: %ld\n", tc_globals.free_cnt);
+  printf("escape count\t: %ld\n", tc_globals.escape_cnt);
+  printf("check count\t: %ld\n", tc_globals.check_cnt);
+#endif
 }
 
 }  // namespace
@@ -1386,6 +1406,7 @@ using tcmalloc::tcmalloc_internal::UsePerCpuCache;
 // export safe function
 using tcmalloc::tcmalloc_internal::do_check_boundary;
 using tcmalloc::tcmalloc_internal::do_escape;
+using tcmalloc::tcmalloc_internal::do_report_statistic;
 
 #ifdef TCMALLOC_DEPRECATED_PERTHREAD
 using tcmalloc::tcmalloc_internal::ThreadCache;
@@ -1427,6 +1448,9 @@ fast_alloc(Policy policy, size_t size, CapacityPtr capacity = nullptr) {
   // path. If malloc is not yet initialized, we may end up with size_class == 0
   // (regardless of size), but in this case should also delegate to the slow
   // path by the fast path check further down.
+#ifdef ENABLE_STATISTIC
+  tc_globals.malloc_cnt++;
+#endif
   uint32_t size_class;
   bool is_small = tc_globals.sizemap().GetSizeClass(policy, size, &size_class);
   if (ABSL_PREDICT_FALSE(!is_small)) {
@@ -1720,18 +1744,29 @@ extern "C" void* TCMallocInternalRealloc(void* old_ptr,
 
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalCheckBoundary(
     void *base, void *ptr, size_t size) noexcept {
-#if ENABLE_PROTECTION
+#ifdef ENABLE_STATISTIC
+  tc_globals.check_cnt++;
+#endif
+
+#ifdef ENABLE_PROTECTION
   return do_check_boundary(base, ptr, size);
 #else
-  return 1;
+  return 0;
 #endif
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(
     void** loc, void* ptr) noexcept {
-#if ENABLE_PROTECTION
+#ifdef ENABLE_STATISTIC
+  tc_globals.escape_cnt++;
+#endif
+#ifdef ENABLE_PROTECTION
   return do_escape(loc, ptr);
 #endif
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void TCReportStatistic() noexcept {
+  return do_report_statistic();
 }
 
 extern "C" void* TCMallocInternalNewNothrow(size_t size,

@@ -74,6 +74,13 @@ ABSL_CONST_INIT NumaTopology<kNumaPartitions, kNumBaseClasses>
 
 ABSL_CONST_INIT Static tc_globals;
 
+#ifdef ENABLE_STATISTIC
+size_t Static::malloc_cnt;
+size_t Static::free_cnt;
+size_t Static::escape_cnt;
+size_t Static::check_cnt;
+#endif
+
 size_t Static::metadata_bytes() {
   // This is ugly and doesn't nicely account for e.g. alignment losses
   // -- I'd like to put all the above in a struct and take that
@@ -93,6 +100,9 @@ size_t Static::metadata_bytes() {
       sizeof(pagemap_) + sizeof(sampled_objects_size_) +
       sizeof(sampled_internal_fragmentation_) +
       sizeof(peak_heap_tracker_) + sizeof(guardedpage_allocator_) +
+#ifdef ENABLE_STATISTIC
+      sizeof(size_t) * 4 +
+#endif
       sizeof(numa_topology_) + sizeof(escape_allocator_);
   // LINT.ThenChange(:static_vars)
 

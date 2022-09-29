@@ -172,6 +172,13 @@ class Static final {
   // structure, so figure out how much of it is actually resident.
   static size_t pagemap_residence();
 
+#ifdef ENABLE_STATISTIC
+  static size_t malloc_cnt;
+  static size_t free_cnt;
+  static size_t escape_cnt;
+  static size_t check_cnt;
+#endif
+
  private:
 #if defined(__clang__)
   __attribute__((preserve_most))

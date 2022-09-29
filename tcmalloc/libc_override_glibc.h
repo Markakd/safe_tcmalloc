@@ -69,13 +69,14 @@ void* __libc_pvalloc(size_t size) noexcept
 int __posix_memalign(void** r, size_t a, size_t s) noexcept
     TCMALLOC_ALIAS(TCMallocInternalPosixMemalign);
 
-// #ifdef SAFE_GUARD
 int __check_boundary(void *base, void* ptr, size_t size) noexcept
     TCMALLOC_ALIAS(TCMallocInternalCheckBoundary);
 
 void __escape(void** loc, void* ptr) noexcept
     TCMALLOC_ALIAS(TCMallocInternalEscape);
-// #endif
+
+void __report_statistic() noexcept
+    TCMALLOC_ALIAS(TCReportStatistic);
 }  // extern "C"
 
 #endif  // #if defined(__GNUC__) && !defined(__MACH__)
