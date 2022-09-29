@@ -1,0 +1,18 @@
+config ENABLE_PROTECTION
+	bool "Enable allocator support of preventing memory corruption"
+	default y
+
+config CRASH_ON_CORRUPTION
+	bool "Crash when corruption is detected"
+	depends on ENABLE_PROTECTION
+	default n
+
+config PROTECTION_DEBUG
+	bool "Enable debug logs"
+	depends on ENABLE_PROTECTION
+	default n
+
+config ENABLE_STATISTIC
+	bool "Enable statistic report"
+	depends on ENABLE_PROTECTION
+	default n

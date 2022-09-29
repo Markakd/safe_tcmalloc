@@ -6,6 +6,7 @@ project(tcmalloc LANGUAGES CXX ASM)
 
 include(GNUInstallDirs)
 include("cmake/tcmalloc_cc_library.cmake")
+include(config.cmake)
 
 # list(APPEND CMAKE_PREFIX_PATH "/root/tcmalloc/abseil-cpp/")
 # Check that this is not an in-source build:

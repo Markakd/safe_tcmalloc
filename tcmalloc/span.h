@@ -125,11 +125,7 @@ class EscapeTable {
   void Destroy() {
     // by the time of destroy, all the escapes should be removed
     // otherwise, this is a memory leak.
-    // ASSERT is not enabled by default, so use assert
-    if(head) {
-      printf("escape memory leaked");
-      abort();
-    }
+    CHECK_CONDITION(head == nullptr);
   }
 
   void Free(void *ptr) {

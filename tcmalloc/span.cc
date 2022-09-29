@@ -50,14 +50,12 @@ void EscapeTable::delete_escape(struct escape *e) {
 }
 
 EscapeTable* EscapeTable::GetEscapeTable(void *ptr) {
-// #ifdef ENABLE_PROTECTION
   const PageId p = PageIdContaining(ptr);
   Span *span = tc_globals.pagemap().GetDescriptor(p);
   if (span) {
     return span->GetEscapeTable();
   }
   return nullptr;
-// #endif
 }
 
 void Span::Sample(SampledAllocation* sampled_allocation) {

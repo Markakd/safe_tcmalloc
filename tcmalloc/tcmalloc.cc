@@ -1037,7 +1037,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
   // therefore static initialization must have already occurred.
   ASSERT(tc_globals.IsInited());
 
-  // #ifdef ENABLE_PROTECTION
+#ifdef ENABLE_PROTECTION
   Span* span_ = tc_globals.pagemap().GetDescriptor(p);
   if (span_) {
     // check if is invalid free
@@ -1049,25 +1049,29 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     CHECK_CONDITION(obj_size != 0);
     size_t start_addr = (size_t)span_->start_address();
     if (((size_t)ptr - start_addr) % obj_size != 0) {
-        // (*invalid_free_fn)(ptr);
-        // Log(kCrash, __FILE__, __LINE__,
-        //   "double/invalid free detected");
-      printf("invalid free for ptr %p detected\n", ptr);
+      Log(kLogWithStack, __FILE__, __LINE__,
+          "double/invalid free detected");
+#ifdef CRASH_ON_CORRUPTION
+      abort();
+#endif
       return;
     }
     // free all escapes to p
     span_->GetEscapeTable()->Free(ptr);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
-      // Log(kCrash, __FILE__, __LINE__,
-      //   "double/invalid free detected");
-      printf("double/invalid free detected\n");
-      return;
+      Log(kLogWithStack, __FILE__, __LINE__,
+        "double/invalid free detected");
+    } else {
+      Log(kLogWithStack, __FILE__, __LINE__,
+        "freeing a pointer with no span", ptr);
     }
-    printf("freeing a pointer with no span %p\n", ptr);
+#ifdef CRASH_ON_CORRUPTION
+    abort();
+#endif
     return;
   }
-// #endif
+#endif
 
   if (!have_size_class) {
     size_class = tc_globals.pagemap().sizeclass(p);
@@ -1107,7 +1111,42 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
   ASSERT(CorrectSize(ptr, size, align));
   ASSERT(CorrectAlignment(ptr, static_cast<std::align_val_t>(align.align())));
 
-// TODO:
+#ifdef ENABLE_PROTECTION
+  PageId p = PageIdContaining(ptr);
+  Span* span_ = tc_globals.pagemap().GetDescriptor(p);
+  if (span_) {
+    // check if is invalid free
+    // if sizeclass is 0, then the span is dedicated to the page
+    // the check is done in the following.
+    // fixme
+    size_t obj_size = GetSize(ptr);
+    CHECK_CONDITION(obj_size == span_->obj_size);
+    CHECK_CONDITION(obj_size != 0);
+    size_t start_addr = (size_t)span_->start_address();
+    if (((size_t)ptr - start_addr) % obj_size != 0) {
+      Log(kLogWithStack, __FILE__, __LINE__,
+          "double/invalid free detected");
+#ifdef CRASH_ON_CORRUPTION
+      abort();
+#endif
+      return;
+    }
+    // free all escapes to p
+    span_->GetEscapeTable()->Free(ptr);
+  } else {
+    if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
+      Log(kLogWithStack, __FILE__, __LINE__,
+        "double/invalid free detected");
+    } else {
+      Log(kLogWithStack, __FILE__, __LINE__,
+        "freeing a pointer with no span", ptr);
+    }
+#ifdef CRASH_ON_CORRUPTION
+    abort();
+#endif
+    return;
+  }
+#endif
 
   // This is an optimized path that may be taken if the binary is compiled
   // with -fsized-delete. We attempt to discover the size class cheaply
@@ -1277,7 +1316,6 @@ int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
-      printf("no span\n");
       return 1;
     }
     obj_size = span->obj_size;
@@ -1287,13 +1325,21 @@ int do_check_boundary(void *base, void *ptr, size_t size) noexcept {
   size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
 
+#ifdef PROTECTION_DEBUG
+  printf("start_addr 0x%lx, objsize %ld, chunk range [%lx-%lx], base %p, access range [%p-0x%lx]\n",
+          start_addr, obj_size, chunk_start, chunk_end, base, ptr, size+(size_t)ptr);
+#endif
+
   if ((size_t)ptr >= chunk_start && ((size_t)ptr + size) <= chunk_end) {
     return 0;
   }
 
-  printf("oob detected\n");
-  return -1;
+  Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#ifdef CRASH_ON_CORRUPTION
+  abort();
+#endif
 
+  return -1;
 }
 
 void do_escape(
@@ -1674,12 +1720,18 @@ extern "C" void* TCMallocInternalRealloc(void* old_ptr,
 
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalCheckBoundary(
     void *base, void *ptr, size_t size) noexcept {
+#if ENABLE_PROTECTION
   return do_check_boundary(base, ptr, size);
+#else
+  return 1;
+#endif
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(
     void** loc, void* ptr) noexcept {
+#if ENABLE_PROTECTION
   return do_escape(loc, ptr);
+#endif
 }
 
 extern "C" void* TCMallocInternalNewNothrow(size_t size,
