@@ -2,3 +2,5 @@
 bazel-*
 .vscode
 build/
+.config
+config.cmake
