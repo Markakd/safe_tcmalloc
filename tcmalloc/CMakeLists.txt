@@ -371,15 +371,26 @@ tcmalloc_cc_library(
 tcmalloc_cc_library(
   NAME "tcmalloc_large_pages"
   SRCS 
-        "libc_override.h"
-        "libc_override_gcc_and_weak.h"
-        "libc_override_glibc.h"
-        "libc_override_redefine.h"
-        "tcmalloc.cc"
-        "tcmalloc.h"
+      "libc_override.h"
+      "libc_override_gcc_and_weak.h"
+      "libc_override_glibc.h"
+      "libc_override_redefine.h"
+      "tcmalloc.cc"
+      "tcmalloc.h"
+      "allocation_sample.cc"      
+      "allocation_sample.h"
+      "cpu_cache.cc"
+      "cpu_cache.h"
+      "global_stats.h"
+      "global_stats.cc"
+      "sampled_allocation.h"
+      "sampled_allocation.cc"
+      "lifetime_based_allocator.cc"
+      "lifetime_based_allocator.h"
+      "experimental_cfl_aware_size_class.cc"
 
-  COPTS "-DTCMALLOC_LARGE_PAGES"
-
+  COPTS "-DTCMALLOC_LARGE_PAGES -O2"
+  LINKOPTS "-O2"
   PUBLIC
   DEPS ${tcmalloc_deps} 
         "tcmalloc::common_large_pages"
