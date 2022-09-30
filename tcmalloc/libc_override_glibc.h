@@ -81,7 +81,7 @@ void __report_statistic() noexcept
     TCMALLOC_ALIAS(TCReportStatistic);
 void __report_error() noexcept
     TCMALLOC_ALIAS(TCReportError);
-int64_t __get_chunk_size(void*) noexcept
+size_t __get_chunk_end(void*) noexcept
     TCMALLOC_ALIAS(TCGetChunkSize);
 }  // extern "C"
 

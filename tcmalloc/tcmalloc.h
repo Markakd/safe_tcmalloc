@@ -45,7 +45,7 @@ void TCReportStatistic() noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 void TCReportError() noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
-__int64_t TCGetChunkSize(void*) noexcept
+size_t TCGetChunkSize(void*) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
 

@@ -1431,7 +1431,7 @@ static inline void do_report_error() noexcept {
 #endif
 }
 
-static inline int64_t do_get_chunk_size(void* base) noexcept {
+static inline size_t do_get_chunk_end(void* base) noexcept {
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span *span;
@@ -1465,7 +1465,7 @@ static inline int64_t do_get_chunk_size(void* base) noexcept {
   size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
 
-  return chunk_end - (size_t)base;
+  return chunk_end;
 }
 
 static inline void do_report_statistic() {
@@ -1506,7 +1506,7 @@ using tcmalloc::tcmalloc_internal::UsePerCpuCache;
 using tcmalloc::tcmalloc_internal::do_gep_check_boundary;
 using tcmalloc::tcmalloc_internal::do_bc_check_boundary;
 using tcmalloc::tcmalloc_internal::do_escape;
-using tcmalloc::tcmalloc_internal::do_get_chunk_size;
+using tcmalloc::tcmalloc_internal::do_get_chunk_end;
 using tcmalloc::tcmalloc_internal::do_report_error;
 using tcmalloc::tcmalloc_internal::do_report_statistic;
 
@@ -1875,8 +1875,8 @@ extern "C" ABSL_CACHELINE_ALIGNED void TCReportError() noexcept {
 #endif
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED int64_t TCGetChunkSize(void* base) noexcept {
-  return do_get_chunk_size(base);
+extern "C" ABSL_CACHELINE_ALIGNED size_t TCGetChunkSize(void* base) noexcept {
+  return do_get_chunk_end(base);
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(
