@@ -16,3 +16,8 @@ config ENABLE_STATISTIC
 	bool "Enable statistic report"
 	depends on ENABLE_PROTECTION
 	default n
+
+config ENABLE_ERROR_REPORT
+	bool "Enable error report"
+	depends on ENABLE_PROTECTION
+	default n

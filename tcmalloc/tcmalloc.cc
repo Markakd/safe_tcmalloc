@@ -1345,7 +1345,9 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
     return 0;
   }
 
+#ifdef ENABLE_ERROR_REPORT
   Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
 #ifdef CRASH_ON_CORRUPTION
   abort();
 #endif
@@ -1399,7 +1401,9 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
     return 0;
   }
 
+#ifdef ENABLE_ERROR_REPORT
   Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
 #ifdef CRASH_ON_CORRUPTION
   abort();
 #endif
@@ -1425,7 +1429,9 @@ static inline void do_escape(
 }
 
 static inline void do_report_error() noexcept {
-    Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#ifdef ENABLE_ERROR_REPORT
+  Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
 #ifdef CRASH_ON_CORRUPTION
   abort();
 #endif
