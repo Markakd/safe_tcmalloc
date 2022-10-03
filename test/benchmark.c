@@ -51,8 +51,21 @@ int main() {
   void **global_escapes = tracked_malloc(ALLOC_SIZE * sizeof(void *));
   assert(global != 0);
   assert(global_size != 0);
+
+  // non heap test
+  begin = clock();
+  char data[0x100];
+  void *heap = tracked_malloc(0x100);
+  for (size_t i=0; i<ALLOC_SIZE*0x1000; i++) {
+    assert(texas_check_boundary(data, data, 0x100) == 1);
+    // assert(texas_check_boundary(heap, heap, 0x100) == 0);
+  }
+  end = clock();
+  time_spent = (double)(end - main_begin) / CLOCKS_PER_SEC;
+  printf("time spent for checking non-heap is %f s\n\n", time_spent);
   
   // allocation test
+  begin = clock();
   for (int i=0; i<ALLOC_SIZE; i++) {
     size_t size = (rand() % MAX_SIZE) + MIN_SIZE;
     global[i] = tracked_malloc(size + MIN_SIZE);
@@ -60,7 +73,7 @@ int main() {
     global_size[i] = size;
   }
   end = clock();
-  time_spent = (double)(end - main_begin) / CLOCKS_PER_SEC;
+  time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
   printf("time spent for allocation is %f s\n", time_spent);
 
   // escape test

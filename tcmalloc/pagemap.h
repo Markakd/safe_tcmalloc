@@ -136,8 +136,9 @@ class PageMap2 {
   get_page_info(Number k) const ABSL_NO_THREAD_SAFETY_ANALYSIS {
     const Number i1 = k >> kLeafBits;
     const Number i2 = k & (kLeafLength - 1);
-    ASSERT((k >> BITS) == 0);
-    ASSERT(root_[i1] != nullptr);
+    if ((k >> BITS) != 0 || root_[i1] == nullptr) {
+      return 0;
+    }
     return root_[i1]->sizeclass[i2];
   }
 
