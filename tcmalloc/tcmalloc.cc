@@ -1438,6 +1438,9 @@ static inline void do_report_error() noexcept {
 }
 
 static inline size_t do_get_chunk_end(void* base) noexcept {
+#ifdef ENABLE_STATISTIC
+  tc_globals.get_end_cnt++;
+#endif
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span *span;
@@ -1479,6 +1482,7 @@ static inline void do_report_statistic() {
   printf("\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
   printf("free count\t: %ld\n", tc_globals.free_cnt);
   printf("escape count\t: %ld\n", tc_globals.escape_cnt);
+  printf("get end count\t: %ld\n", tc_globals.get_end_cnt);
   printf("gep check count\t: %ld\n", tc_globals.gep_check_cnt);
   printf("bc check count\t: %ld\n", tc_globals.bc_check_cnt);
 #endif

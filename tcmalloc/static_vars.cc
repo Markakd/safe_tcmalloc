@@ -78,6 +78,7 @@ ABSL_CONST_INIT Static tc_globals;
 size_t Static::malloc_cnt;
 size_t Static::free_cnt;
 size_t Static::escape_cnt;
+size_t Static::get_end_cnt;
 size_t Static::gep_check_cnt;
 size_t Static::bc_check_cnt;
 #endif
