@@ -103,7 +103,7 @@ size_t Static::metadata_bytes() {
       sizeof(sampled_internal_fragmentation_) +
       sizeof(peak_heap_tracker_) + sizeof(guardedpage_allocator_) +
 #ifdef ENABLE_STATISTIC
-      sizeof(size_t) * 4 +
+      sizeof(size_t) * 6 +
 #endif
       sizeof(numa_topology_) + sizeof(escape_allocator_);
   // LINT.ThenChange(:static_vars)

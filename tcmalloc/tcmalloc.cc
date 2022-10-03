@@ -1479,12 +1479,12 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
 
 static inline void do_report_statistic() {
 #ifdef ENABLE_STATISTIC
-  printf("\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
-  printf("free count\t: %ld\n", tc_globals.free_cnt);
-  printf("escape count\t: %ld\n", tc_globals.escape_cnt);
-  printf("get end count\t: %ld\n", tc_globals.get_end_cnt);
-  printf("gep check count\t: %ld\n", tc_globals.gep_check_cnt);
-  printf("bc check count\t: %ld\n", tc_globals.bc_check_cnt);
+  fprintf(stderr, "\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
+  fprintf(stderr, "free count\t: %ld\n", tc_globals.free_cnt);
+  fprintf(stderr, "escape count\t: %ld\n", tc_globals.escape_cnt);
+  fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
+  fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
+  fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
 #endif
 }
 
