@@ -167,7 +167,13 @@ void test_escape_fuzz() {
   printf("FINISHING test_escape_fuzz\n");
 }
 
+void test_non_heap() {
+  char data[0x100];
+  assert(1 == __gep_check_boundary(data, data+0x10, 0x10));
+}
+
 int main () {
+  test_non_heap();
   test_check_boundary();
   test_escape_0();
   test_escape_1();
