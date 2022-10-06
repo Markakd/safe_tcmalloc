@@ -8,20 +8,16 @@
 
 ```bash
 # build tcmalloc
-cmake .
+mkdir build
+cd build
+cmake ..
 make -j`nproc`
-make install
-# set env
-echo "PATH=$HOME/usr/local/bin:$PATH:$HOME/bin" >> ~/.bashrc
-echo "LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:$HOME/lib:/$LD_LIBRARY_PATH" >> ~/.bashrc
-echo "export PATH" >> ~/.bashrc
-echo "export LD_LIBRARY_PATH" >> ~/.bashrc
-source ~/.bashrc
-# run the test in tcmalloc/test/test.cc by tcmalloc/test/compile.sh
-cd test
-./compile
-ls -lh ./test.out
-ldd -r ./test.out
+
+# build static library
+bash build_static.sh
+
+# link statically
+clang++ x.c -o x  -lrt -lpthread build/tcmalloc/static/libtcmalloc.a
 ```
 
 
