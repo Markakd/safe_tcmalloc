@@ -125,7 +125,33 @@ class EscapeTable {
   void Destroy() {
     // by the time of destroy, all the escapes should be removed
     // otherwise, this is a memory leak.
-    CHECK_CONDITION(head == nullptr);
+    // CHECK_CONDITION(head == nullptr);
+    if (head != nullptr) {
+      Log(kLog, __FILE__, __LINE__, "Escape leak detected");
+
+      while (head != nullptr) {
+        struct escape *e = head;
+        head = head->next;
+
+        while (e->escape_list) {
+          struct escape *cur = e->escape_list;
+          e->escape_list = cur->next;
+
+#if 0
+          if (*(reinterpret_cast<void**>(cur->addr)) == e->addr) {
+#ifdef PROTECTION_DEBUG
+            Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
+#endif
+            *(reinterpret_cast<void**>(cur->addr)) = (void *)0xdeadbeefdeadbeef;
+          }
+#endif
+
+          delete_escape(cur);
+        }
+        delete_escape(e);
+      }
+
+    }
   }
 
   void Free(void *ptr, void *end) {
