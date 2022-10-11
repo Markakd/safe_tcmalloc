@@ -1061,7 +1061,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
       return;
     }
     // free all escapes to p
-    span_->GetEscapeTable()->Free(ptr);
+    span_->GetEscapeTable()->Free(ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
       Log(kLogWithStack, __FILE__, __LINE__,
@@ -1140,7 +1140,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
       return;
     }
     // free all escapes to p
-    span_->GetEscapeTable()->Free(ptr);
+    span_->GetEscapeTable()->Free(ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
       Log(kLogWithStack, __FILE__, __LINE__,
@@ -1411,6 +1411,30 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
   return -1;
 }
 
+static inline size_t do_get_chunk_start(void* base) noexcept {
+  const PageId p = PageIdContaining(base);
+  size_t start_addr, obj_size;
+  Span *span;
+
+  size_t page_info = tc_globals.pagemap().get_page_info(p);
+  size_t size_class = page_info & (CompactSizeClass)(-1);
+  if (size_class != 0) {
+    obj_size = tc_globals.sizemap().class_to_size(size_class);
+    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  } else {
+    span = tc_globals.pagemap().GetDescriptor(p);
+    if (!span) {
+      return 1;
+    }
+    obj_size = span->obj_size;
+    start_addr = (size_t)span->start_address();
+  }
+
+  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+
+  return chunk_start;
+}
+
 static inline void do_escape(
     void **loc, void* ptr) noexcept {
   // store pointer new into loc
@@ -1425,7 +1449,9 @@ static inline void do_escape(
     return;
   }
 
-  span->GetEscapeTable()->Insert(loc, ptr);
+  void* new_base =  ptr ? (void*) do_get_chunk_start(ptr): nullptr;
+  void* old_base = *loc ? (void*)do_get_chunk_start(*loc): nullptr;
+  span->GetEscapeTable()->Insert(loc, new_base, old_base);
 }
 
 static inline void do_report_error() noexcept {
@@ -1444,18 +1470,6 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span *span;
-
-// #define OBJ_SIZE_DEBUG
-#ifdef OBJ_SIZE_DEBUG
-  span = tc_globals.pagemap().GetExistingDescriptor(p);
-  CHECK_CONDITION(span->obj_size != 0);
-  CHECK_CONDITION(span->obj_size = GetSize(base));
-
-  size_t raw_data = tc_globals.pagemap().get_page_info(p);
-  if (raw_data) {
-    CHECK_CONDITION((raw_data >> 8) == span->first_page().index());
-  }
-#endif
 
   size_t page_info = tc_globals.pagemap().get_page_info(p);
   size_t size_class = page_info & (CompactSizeClass)(-1);
