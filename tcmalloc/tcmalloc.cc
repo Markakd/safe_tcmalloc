@@ -1440,6 +1440,18 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
 
 static inline void do_escape(
     void **loc, void* ptr) noexcept {
+  // store pointer new into loc
+  // so loc will point to new
+  // find span of new and then add to the list
+  if (ptr == 0)
+    return;
+
+  const PageId p = PageIdContaining(ptr);
+  Span* span = tc_globals.pagemap().GetDescriptor(p);
+  if (!span) {
+    return;
+  }
+
   void* new_base =  ptr ? (void*) do_get_chunk_start(ptr): nullptr;
   void* old_base = *loc ? (void*)do_get_chunk_start(*loc): nullptr;
 
