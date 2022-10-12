@@ -401,6 +401,9 @@ static ABSL_ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
 // nallocx is a malloc extension originally implemented by jemalloc:
 // http://www.unix.com/man-page/freebsd/3/nallocx/
 extern "C" size_t nallocx(size_t size, int flags) noexcept {
+#ifdef ENABLE_PROTECTION
+  size++;
+#endif
   if (ABSL_PREDICT_FALSE(!tc_globals.IsInited() || flags != 0)) {
     return nallocx_slow(size, flags);
   }
@@ -1577,6 +1580,19 @@ fast_alloc(Policy policy, size_t size, CapacityPtr capacity = nullptr) {
 #ifdef ENABLE_STATISTIC
   tc_globals.malloc_cnt++;
 #endif
+
+#ifdef ENABLE_PROTECTION
+  // when the size of object is the same as the size of chunk, a ptr pointing
+  // to the end of obj a will point to the start of of the adjacent chunk as
+  // well. This will confuse escape when maintaining the "who points to me".
+  // mitigate this issue by padding one extra byte for each allocation.
+  // |  chunk a  |  chunk b  |
+  //            /|\
+  //             |
+  //            ptr
+  size = size + 1;
+#endif
+
   uint32_t size_class;
   bool is_small = tc_globals.sizemap().GetSizeClass(policy, size, &size_class);
   if (ABSL_PREDICT_FALSE(!is_small)) {
@@ -1813,6 +1829,11 @@ static inline ABSL_ATTRIBUTE_ALWAYS_INLINE void* do_realloc(void* old_ptr,
   tc_globals.InitIfNecessary();
   // Get the size of the old entry
   const size_t old_size = GetSize(old_ptr);
+
+#ifdef ENABLE_PROTECTION
+  // 2 extra bytes for realloc is intended
+  new_size = new_size + 1;
+#endif
 
   // Reallocate if the new size is larger than the old size,
   // or if the new size is significantly smaller than the old size.
