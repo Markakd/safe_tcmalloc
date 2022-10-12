@@ -142,7 +142,7 @@ class EscapeTable {
 #ifdef PROTECTION_DEBUG
             Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
 #endif
-            *(reinterpret_cast<void**>(cur->addr)) = (void *)0xdeadbeefdeadbeef;
+            *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t)0xdeadbeef00000000;
           }
 #endif
 
@@ -172,7 +172,7 @@ class EscapeTable {
 #ifdef PROTECTION_DEBUG
         Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
 #endif
-        *(reinterpret_cast<void**>(cur->addr)) = (void *)0xdeadbeefdeadbeef;
+        *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t)0xdeadbeef00000000;
       }
 
       delete_escape(cur);

@@ -1066,7 +1066,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     // free all escapes to p
     span_->GetEscapeTable()->Free(ptr, (char*)ptr + obj_size);
   } else {
-    if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
+    if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
       Log(kLogWithStack, __FILE__, __LINE__,
         "double/invalid free detected");
     } else {
@@ -1145,7 +1145,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     // free all escapes to p
     span_->GetEscapeTable()->Free(ptr, (char*)ptr + obj_size);
   } else {
-    if ((reinterpret_cast<uintptr_t>(ptr) >> 32) == 0xdeadbeef) {
+    if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
       Log(kLogWithStack, __FILE__, __LINE__,
         "double/invalid free detected");
     } else {
