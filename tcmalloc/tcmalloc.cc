@@ -1483,7 +1483,7 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
-      return 1;
+      return 0x1000000000000;
     }
     obj_size = span->obj_size;
     start_addr = (size_t)span->start_address();
