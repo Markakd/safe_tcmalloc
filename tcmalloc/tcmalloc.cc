@@ -1344,7 +1344,8 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
           start_addr, obj_size, chunk_start, chunk_end, base, ptr, size+(size_t)ptr);
 #endif
 
-  if ((size_t)ptr >= chunk_start && ((size_t)ptr + size) <= chunk_end) {
+  // We need reserve eight more bytes
+  if ((size_t)ptr >= chunk_start - 8 && ((size_t)ptr + size) <= chunk_end) {
     return 0;
   }
 
