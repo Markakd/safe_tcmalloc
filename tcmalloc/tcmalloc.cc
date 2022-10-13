@@ -1468,7 +1468,7 @@ static inline void do_report_error() noexcept {
 #endif
 }
 
-static inline size_t do_get_chunk_end(void* base) noexcept {
+static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 #ifdef ENABLE_STATISTIC
   tc_globals.get_end_cnt++;
 #endif
@@ -1484,6 +1484,7 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
+      *start = 0;
       return 0x1000000000000;
     }
     obj_size = span->obj_size;
@@ -1493,6 +1494,7 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
   size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
 
+  *start = chunk_start - 8;
   return chunk_end;
 }
 
@@ -1535,7 +1537,7 @@ using tcmalloc::tcmalloc_internal::UsePerCpuCache;
 using tcmalloc::tcmalloc_internal::do_gep_check_boundary;
 using tcmalloc::tcmalloc_internal::do_bc_check_boundary;
 using tcmalloc::tcmalloc_internal::do_escape;
-using tcmalloc::tcmalloc_internal::do_get_chunk_end;
+using tcmalloc::tcmalloc_internal::do_get_chunk_range;
 using tcmalloc::tcmalloc_internal::do_report_error;
 using tcmalloc::tcmalloc_internal::do_report_statistic;
 
@@ -1922,8 +1924,8 @@ extern "C" ABSL_CACHELINE_ALIGNED void TCReportError() noexcept {
 #endif
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED size_t TCGetChunkSize(void* base) noexcept {
-  return do_get_chunk_end(base);
+extern "C" ABSL_CACHELINE_ALIGNED size_t TCGetChunkRange(void* base, size_t* start) noexcept {
+  return do_get_chunk_range(base, start);
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(
