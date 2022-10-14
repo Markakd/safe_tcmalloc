@@ -181,7 +181,7 @@ class EscapeTable {
           void* cur_addr = *(reinterpret_cast<void**>(cur->addr));
           if (ptr <= cur_addr && cur_addr < end) {
 #ifdef PROTECTION_DEBUG
-            Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
+        Log(kLog, __FILE__, __LINE__, "poison", cur->addr, "content", *(reinterpret_cast<void**>(cur->addr)));
 #endif
             *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t) 0xdeadbeef00000000;
           }

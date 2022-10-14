@@ -2235,7 +2235,7 @@ extern "C" struct mallinfo TCMallocInternalMallocInfo(void) noexcept {
 
 extern "C" size_t TCMallocInternalMallocSize(void* ptr) noexcept {
   ASSERT(GetOwnership(ptr) != tcmalloc::MallocExtension::Ownership::kNotOwned);
-  return GetSize(ptr);
+  return GetSize(ptr) - 1;
 }
 
 GOOGLE_MALLOC_SECTION_BEGIN
