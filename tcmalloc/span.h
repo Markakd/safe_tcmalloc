@@ -159,41 +159,57 @@ class EscapeTable {
 #ifdef PROTECTION_DEBUG
     Log(kLog, __FILE__, __LINE__, "Freeing ptr ", ptr);
 #endif
-    struct escape *e = remove(&head, ptr);
+    struct escape* pre = nullptr;
+    struct escape* cur = head;
 
-    if (!e) return;
+    while (cur) {
+      if (ptr <= cur->addr && cur->addr < end) {
+        struct escape* e = cur;
 
-    while (e->escape_list) {
-      struct escape *cur = e->escape_list;
-      e->escape_list = cur->next;
+        if (pre == nullptr) {
+          head = e->next;
+          cur  = e->next;
+        } else {
+          pre->next = e->next;
+          cur = e->next;
+        }
 
-      void* cur_addr = *(reinterpret_cast<void**>(cur->addr));
-      if (ptr <= cur_addr && cur_addr < end) {
+        while (e->escape_list) {
+          struct escape *cur = e->escape_list;
+          e->escape_list = cur->next;
+
+          void* cur_addr = *(reinterpret_cast<void**>(cur->addr));
+          if (ptr <= cur_addr && cur_addr < end) {
 #ifdef PROTECTION_DEBUG
-        Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
+            Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
 #endif
-        *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t)0xdeadbeef00000000;
+            *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t) 0xdeadbeef00000000;
+          }
+          delete_escape(cur);
+        }
+        delete_escape(e);
+      } else {
+        pre = cur;
+        cur = cur->next;
       }
-
-      delete_escape(cur);
     }
-    delete_escape(e);
   }
 
-  void Insert(void **loc, void *new_base, void *old_base) {
+  void Insert(void **loc, void *ptr) {
     struct escape *list;
+    void* old_ptr = *loc;
 
 #ifdef PROTECTION_DEBUG
-    printf("loc %p, old_base %p new_base %p\n", loc, old_base, new_base);
+    printf("loc %p, old_ptr %p ptr %p\n", loc, old_ptr, ptr);
 #endif
-    if (new_base == old_base) return;
+    if (old_ptr == ptr) return;
 
     // try to remove escape of old ptr
-    EscapeTable *escape_table_ = GetEscapeTable(old_base);
+    EscapeTable *escape_table_ = GetEscapeTable(old_ptr);
     if (escape_table_) {
-      struct escape *e = escape_table_->lookup(old_base);
+      struct escape *e = escape_table_->lookup(old_ptr);
 #ifdef PROTECTION_DEBUG
-      printf("got escape table at %p for ptr %p\n", escape_table_, old_base);
+      printf("got escape table at %p for ptr %p\n", escape_table_, old_ptr);
 #endif
       if (e) {
         // remove loc from e->escape_list
@@ -207,12 +223,12 @@ class EscapeTable {
       }
     }
     
-    if (new_base == 0) return;
+    if (ptr == 0) return;
 
-    list = lookup(new_base);
+    list = lookup(ptr);
     if (!list) {
       list = alloc_escape();
-      list->addr = new_base;
+      list->addr = ptr;
       list->next = head;
       head = list;
     }

@@ -1453,10 +1453,7 @@ static inline void do_escape(
     return;
   }
 
-  void* new_base =  ptr ? (void*) do_get_chunk_start(ptr): nullptr;
-  void* old_base = *loc ? (void*)do_get_chunk_start(*loc): nullptr;
-
-  span->GetEscapeTable()->Insert(loc, new_base, old_base);
+  span->GetEscapeTable()->Insert(loc, ptr);
 }
 
 static inline void do_report_error() noexcept {
