@@ -826,6 +826,25 @@ inline size_t ShouldSampleAllocation(size_t size) {
   return GetThreadSampler()->RecordAllocation(size);
 }
 
+inline size_t GetSize(const void* ptr) {
+  if (ptr == nullptr) return 0;
+  const PageId p = PageIdContaining(ptr);
+  size_t size_class = tc_globals.pagemap().sizeclass(p);
+  if (size_class != 0) {
+    return tc_globals.sizemap().class_to_size(size_class);
+  } else {
+    const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
+    if (span->sampled()) {
+      if (tc_globals.guardedpage_allocator().PointerIsMine(ptr)) {
+        return tc_globals.guardedpage_allocator().GetRequestedSize(ptr);
+      }
+      return span->sampled_allocation()->sampled_stack.allocated_size;
+    } else {
+      return span->bytes_in_span();
+    }
+  }
+}
+
 template <typename Policy, typename CapacityPtr = std::nullptr_t>
 inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
                              CapacityPtr capacity = nullptr) {
@@ -859,10 +878,8 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
                                                   nullptr, span, capacity));
   }
 
-  if (span->obj_size == 0) {
-    span->obj_size = span->bytes_in_span();
-  }
-
+  Span* span_ = tc_globals.pagemap().GetExistingDescriptor(PageIdContaining(result));
+  span->obj_size = GetSize(result);
   return result;
 }
 
@@ -987,25 +1004,6 @@ static size_t GetSizeClass(void* ptr) {
   return tc_globals.pagemap().sizeclass(p);
 }
 #endif
-
-inline size_t GetSize(const void* ptr) {
-  if (ptr == nullptr) return 0;
-  const PageId p = PageIdContaining(ptr);
-  size_t size_class = tc_globals.pagemap().sizeclass(p);
-  if (size_class != 0) {
-    return tc_globals.sizemap().class_to_size(size_class);
-  } else {
-    const Span* span = tc_globals.pagemap().GetExistingDescriptor(p);
-    if (span->sampled()) {
-      if (tc_globals.guardedpage_allocator().PointerIsMine(ptr)) {
-        return tc_globals.guardedpage_allocator().GetRequestedSize(ptr);
-      }
-      return span->sampled_allocation()->sampled_stack.allocated_size;
-    } else {
-      return span->bytes_in_span();
-    }
-  }
-}
 
 // Helper for the object deletion (free, delete, etc.).  Inputs:
 //   ptr is object to be freed
