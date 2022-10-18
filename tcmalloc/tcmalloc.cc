@@ -1442,9 +1442,6 @@ static inline void do_escape(
   // store pointer new into loc
   // so loc will point to new
   // find span of new and then add to the list
-  if (ptr == 0)
-    return;
-
   const PageId p = PageIdContaining(ptr);
   Span* span = tc_globals.pagemap().GetDescriptor(p);
   if (!span) {
