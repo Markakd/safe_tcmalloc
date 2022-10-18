@@ -73,7 +73,10 @@ typedef TList<Span> SpanList;
 
 struct escape {
   struct escape *next;
-  void *addr;
+  union {
+    int idx;
+    void* addr;
+  };
   struct escape *escape_list; // list of addr escaped
 };
 
@@ -116,7 +119,7 @@ class EscapeTable {
   //   e->next = freelist;
   //   freelist = e;
   // }
-  EscapeTable *GetEscapeTable(void *ptr);
+  void ClearOldEscape(void *ptr, void *loc);
 
  public:
   void delete_escape(struct escape *e);
@@ -127,7 +130,7 @@ class EscapeTable {
     // otherwise, this is a memory leak.
     // CHECK_CONDITION(head == nullptr);
     if (head != nullptr) {
-      Log(kLog, __FILE__, __LINE__, "Escape leak detected");
+      // Log(kLog, __FILE__, __LINE__, "Escape leak detected");
 
       while (head != nullptr) {
         struct escape *e = head;
@@ -154,81 +157,47 @@ class EscapeTable {
     }
   }
 
-  void Free(void *ptr, void *end) {
+  void Free(int idx, void *ptr, void *end) {
     // free allocated_note
 #ifdef PROTECTION_DEBUG
     Log(kLog, __FILE__, __LINE__, "Freeing ptr ", ptr);
 #endif
-    struct escape* pre = nullptr;
-    struct escape* cur = head;
+    struct escape* list = lookup(idx);
+    if (list) {
+      while (list->escape_list) {
+        struct escape *cur = list->escape_list;
+        list->escape_list = cur->next;
 
-    while (cur) {
-      if (ptr <= cur->addr && cur->addr < end) {
-        struct escape* e = cur;
-
-        if (pre == nullptr) {
-          head = e->next;
-          cur  = e->next;
-        } else {
-          pre->next = e->next;
-          cur = e->next;
-        }
-
-        while (e->escape_list) {
-          struct escape *cur = e->escape_list;
-          e->escape_list = cur->next;
-
-          void* cur_addr = *(reinterpret_cast<void**>(cur->addr));
-          if (ptr <= cur_addr && cur_addr < end) {
+        void* cur_addr = *(reinterpret_cast<void**>(cur->addr));
+        if (ptr <= cur_addr && cur_addr < end) {
 #ifdef PROTECTION_DEBUG
-        Log(kLog, __FILE__, __LINE__, "poison", cur->addr, "content", *(reinterpret_cast<void**>(cur->addr)));
+          Log(kLog, __FILE__, __LINE__, "poison", cur->addr, "content", *(reinterpret_cast<void**>(cur->addr)));
 #endif
-            *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t) 0xdeadbeef00000000;
-          }
-          delete_escape(cur);
+          // *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t) 0xdeadbeef00000000;
         }
-        delete_escape(e);
-      } else {
-        pre = cur;
-        cur = cur->next;
+        delete_escape(cur);
       }
     }
   }
 
-  void Insert(void **loc, void *ptr) {
+  void Insert(void **loc, int idx) {
     struct escape *list;
     void* old_ptr = *loc;
 
 #ifdef PROTECTION_DEBUG
     printf("loc %p, old_ptr %p ptr %p\n", loc, old_ptr, ptr);
 #endif
-    if (old_ptr == ptr) return;
 
-    // try to remove escape of old ptr
-    EscapeTable *escape_table_ = GetEscapeTable(old_ptr);
-    if (escape_table_) {
-      struct escape *e = escape_table_->lookup(old_ptr);
-#ifdef PROTECTION_DEBUG
-      printf("got escape table at %p for ptr %p\n", escape_table_, old_ptr);
-#endif
-      if (e) {
-        // remove loc from e->escape_list
-        struct escape *e_loc = escape_table_->remove(&e->escape_list, loc);
-        if (e_loc) {
-          escape_table_->delete_escape(e_loc);
-#ifdef PROTECTION_DEBUG
-          printf("deleted escape %p for old ptr %p\n", e_loc, e_loc);
-#endif
-        }
-      }
-    }
-    
-    if (ptr == 0) return;
+    // do not remove escape of old ptr
+    // this is heavy, let the free do the check
+    ClearOldEscape(old_ptr, loc);
 
-    list = lookup(ptr);
+    // need to convert this to
+    // a hash map
+    list = lookup(idx);
     if (!list) {
       list = alloc_escape();
-      list->addr = ptr;
+      list->idx = idx;
       list->next = head;
       head = list;
     }
@@ -240,10 +209,10 @@ class EscapeTable {
     list->escape_list = loc_e;
   }
 
-  struct escape* lookup(void *ptr) {
+  struct escape* lookup(int idx) {
     struct escape *cur = head;
     while (cur) {
-      if (cur->addr == ptr) {
+      if (cur->idx == idx) {
         break;
       }
       cur = cur->next;

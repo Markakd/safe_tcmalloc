@@ -1062,7 +1062,8 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
       return;
     }
     // free all escapes to p
-    span_->GetEscapeTable()->Free(ptr, (char*)ptr + obj_size);
+    int idx = ((size_t)ptr - start_addr) / obj_size;
+    span_->GetEscapeTable()->Free(idx, ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
       Log(kLogWithStack, __FILE__, __LINE__,
@@ -1141,7 +1142,8 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
       return;
     }
     // free all escapes to p
-    span_->GetEscapeTable()->Free(ptr, (char*)ptr + obj_size);
+    int idx = ((size_t)ptr - start_addr) / obj_size;
+    span_->GetEscapeTable()->Free(idx, ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
       Log(kLogWithStack, __FILE__, __LINE__,
@@ -1465,8 +1467,9 @@ static inline int do_escape(
   //   size_t objects_per_span = span_size / allocated_size;
   //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
   // }
-
-  // span->GetEscapeTable()->Insert(loc, ptr);
+  if (span->obj_size == 0) return -1;
+  int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
+  span->GetEscapeTable()->Insert(loc, idx);
   return 0;
 }
 

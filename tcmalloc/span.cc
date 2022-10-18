@@ -38,7 +38,6 @@ struct escape* EscapeTable::alloc_escape() {
   Log(kLog, __FILE__, __LINE__, "alloc escape");
 #endif
   struct escape *e = reinterpret_cast<struct escape *>(Static::escape_allocator().New());
-  memset(e, 0, sizeof(*e));
   return e;
 }
 
@@ -49,13 +48,19 @@ void EscapeTable::delete_escape(struct escape *e) {
   Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
 }
 
-EscapeTable* EscapeTable::GetEscapeTable(void *ptr) {
+void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
   const PageId p = PageIdContaining(ptr);
   Span *span = tc_globals.pagemap().GetDescriptor(p);
-  if (span) {
-    return span->GetEscapeTable();
+  if (span && span->obj_size > 0) {
+    EscapeTable* table = span->GetEscapeTable();
+    int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
+    struct escape *e = table->lookup(idx);
+    if (!e)
+      return;
+    struct escape *e_loc = table->remove(&e->escape_list, loc);
+    if (e_loc) table->delete_escape(e_loc);
   }
-  return nullptr;
+  return;
 }
 
 void Span::Sample(SampledAllocation* sampled_allocation) {
