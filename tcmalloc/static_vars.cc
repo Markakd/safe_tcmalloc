@@ -78,6 +78,8 @@ ABSL_CONST_INIT Static tc_globals;
 size_t Static::malloc_cnt;
 size_t Static::free_cnt;
 size_t Static::escape_cnt;
+size_t Static::escape_valid_cnt;
+size_t Static::escape_heap_cnt;
 size_t Static::get_end_cnt;
 size_t Static::gep_check_cnt;
 size_t Static::bc_check_cnt;
@@ -103,7 +105,7 @@ size_t Static::metadata_bytes() {
       sizeof(sampled_internal_fragmentation_) +
       sizeof(peak_heap_tracker_) + sizeof(guardedpage_allocator_) +
 #ifdef ENABLE_STATISTIC
-      sizeof(size_t) * 6 +
+      sizeof(size_t) * 8 +
 #endif
       sizeof(numa_topology_) + sizeof(escape_allocator_);
   // LINT.ThenChange(:static_vars)

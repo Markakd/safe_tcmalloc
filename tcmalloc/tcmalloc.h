@@ -36,7 +36,7 @@ extern "C" {
 int TCMallocInternalGepCheckBoundary(void *base, void* ptr, size_t size) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
-void TCMallocInternalEscape(void **loc, void* ptr) noexcept
+int TCMallocInternalEscape(void **loc, void* ptr) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
 int TCMallocInternalBcCheckBoundary(void *base, size_t size) noexcept

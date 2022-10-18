@@ -74,7 +74,7 @@ int __gep_check_boundary(void *base, void* ptr, size_t size) noexcept
 int __bc_check_boundary(void *base, size_t size) noexcept
     TCMALLOC_ALIAS(TCMallocInternalBcCheckBoundary);
 
-void __escape(void** loc, void* ptr) noexcept
+int __escape(void** loc, void* ptr) noexcept
     TCMALLOC_ALIAS(TCMallocInternalEscape);
 
 void __report_statistic() noexcept

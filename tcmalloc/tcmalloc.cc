@@ -1437,7 +1437,7 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
   return chunk_start;
 }
 
-static inline void do_escape(
+static inline int do_escape(
     void **loc, void* ptr) noexcept {
   // store pointer new into loc
   // so loc will point to new
@@ -1445,10 +1445,29 @@ static inline void do_escape(
   const PageId p = PageIdContaining(ptr);
   Span* span = tc_globals.pagemap().GetDescriptor(p);
   if (!span) {
-    return;
+    return -1;
   }
+#ifdef ENABLE_STATISTIC
+  tc_globals.escape_valid_cnt++;
+#endif
 
-  span->GetEscapeTable()->Insert(loc, ptr);
+  if (!tc_globals.pagemap().GetDescriptor(PageIdContaining(loc)))
+    return -1;
+
+#ifdef ENABLE_STATISTIC
+  tc_globals.escape_heap_cnt++;
+#endif
+
+  // for (size_t size_class=1; size_class <100; size_class++) {
+  //   size_t span_size =
+  //         Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
+  //   size_t allocated_size = tc_globals.sizemap().class_to_size(size_class);
+  //   size_t objects_per_span = span_size / allocated_size;
+  //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
+  // }
+
+  // span->GetEscapeTable()->Insert(loc, ptr);
+  return 0;
 }
 
 static inline void do_report_error() noexcept {
@@ -1495,6 +1514,8 @@ static inline void do_report_statistic() {
   fprintf(stderr, "\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
   fprintf(stderr, "free count\t: %ld\n", tc_globals.free_cnt);
   fprintf(stderr, "escape count\t: %ld\n", tc_globals.escape_cnt);
+  fprintf(stderr, "escape valid count\t: %ld\n", tc_globals.escape_valid_cnt);
+  fprintf(stderr, "escape heap count\t: %ld\n", tc_globals.escape_heap_cnt);
   fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
@@ -1920,7 +1941,7 @@ extern "C" ABSL_CACHELINE_ALIGNED size_t TCGetChunkRange(void* base, size_t* sta
   return do_get_chunk_range(base, start);
 }
 
-extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalEscape(
+extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalEscape(
     void** loc, void* ptr) noexcept {
 #ifdef ENABLE_STATISTIC
   tc_globals.escape_cnt++;
