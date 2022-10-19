@@ -48,19 +48,24 @@ void EscapeTable::delete_escape(struct escape *e) {
   Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
 }
 
-void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
+struct escape** EscapeTable::alloc_escape_array() {
+  return reinterpret_cast<struct escape **>(Static::escape_array_allocator().New());
+}
+
+void EscapeTable::delete_escape_array(struct escape ** e) {
+  Static::escape_array_allocator().Delete(reinterpret_cast<EscapeArray*>(e));
+}
+
+void EscapeTable::Erase(void **loc, void *ptr) {
   const PageId p = PageIdContaining(ptr);
   Span *span = tc_globals.pagemap().GetDescriptor(p);
+
   if (span && span->obj_size > 0) {
     EscapeTable* table = span->GetEscapeTable();
+
     int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
-    struct escape *e = table->lookup(idx);
-    if (!e)
-      return;
-    struct escape *e_loc = table->remove(&e->escape_list, loc);
-    if (e_loc) table->delete_escape(e_loc);
+    table->Remove(loc, idx);
   }
-  return;
 }
 
 void Span::Sample(SampledAllocation* sampled_allocation) {
