@@ -1440,7 +1440,7 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
 }
 
 static inline int commit_escape(
-    void **loc, void *ptr) noexcept {
+    void **loc, void *ptr, void *old_ptr) noexcept {
   const PageId p = PageIdContaining(ptr);
   Span* span = tc_globals.pagemap().GetDescriptor(p);
   if (!span) {
@@ -1456,7 +1456,6 @@ static inline int commit_escape(
   int idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
-  void *old_ptr = *loc;
   if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
     // same loc, optimize this
     tc_globals.gep_check_cnt++;
@@ -1478,6 +1477,7 @@ static inline int do_escape(
   // if (!loc_span) {
   //   return -1;
   // }
+  void *old_ptr = nullptr;
   size_t current = tc_globals.current;
   if (current == CACHE_SIZE) {
     for (size_t i=0; i<CACHE_SIZE; i++) {
@@ -1485,7 +1485,7 @@ static inline int do_escape(
         // do escapes
         ptr = tc_globals.locs[i].ptr;
         loc = tc_globals.locs[i].loc;
-        commit_escape(loc, ptr);
+        commit_escape(loc, ptr, old_ptr);
       } else {
         // try to delete old ptr to prevent memory leak
       }
