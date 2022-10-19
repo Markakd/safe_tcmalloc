@@ -180,7 +180,7 @@ class EscapeTable {
     }
   }
 
-  void Insert(void **loc, int idx) {
+  void Insert(void **loc, void *ptr, int idx) {
     struct escape *list;
     void* old_ptr = *loc;
 
@@ -190,7 +190,7 @@ class EscapeTable {
 
     // do not remove escape of old ptr
     // this is heavy, let the free do the check
-    ClearOldEscape(old_ptr, loc);
+    ClearOldEscape(old_ptr, (void *)loc);
 
     // need to convert this to
     // a hash map
