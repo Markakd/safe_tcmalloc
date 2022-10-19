@@ -71,55 +71,37 @@ inline constexpr size_t kBitmapScalingDenominator = 65536;
 class Span;
 typedef TList<Span> SpanList;
 
-struct escape {
-  struct escape *next;
-  union {
-    int idx;
-    void* addr;
-  };
-  struct escape *escape_list; // list of addr escaped
+// struct escape {
+//   struct escape *next;
+//   union {
+//     int idx;
+//     void* addr;
+//   };
+//   struct escape *escape_list; // list of addr escaped
+// };
+
+#define MAX_ESCAPES 29
+struct escape_chunk {
+  // 256 size
+  struct escape_chunk *next;
+  struct escape_chunk *escape_list;
+  int idx;
+  int cnt;
+  void *escapes[MAX_ESCAPES];
 };
 
-struct escape_chunk {
-  struct escape_chunk *next;
-  struct escape chunks[21];
-  // this should be 512 size
-};
+#define escape escape_chunk
 
 // the size of memory allocated from metadata
 // not a cache friendly implementation right now
 // it is a escape for each allocation
 class EscapeChunk {
-  char data[sizeof(struct escape)];
+  char data[sizeof(struct escape_chunk)];
 };
 
 class EscapeTable {
-  // TODO: we need a lock here
-  // absl::base_internal::SpinLock freelist_lock;
-
   struct escape *head = nullptr;
-
-  // use the freelist in the same page to improve cache-hit
-  // struct escape *freelist = nullptr;
-
-  // linked list of escape node allocated
-  // this is used when new allocation for escape
-  // and free escapes, so put it out of cache line
-  // struct escape_chunk *allocated_escape_chunks = nullptr;
-
-  // inline void init_freelist(struct escape_chunk *chunk) {
-  //   // init freelist
-  //   for (int i=0; i<21; i++) {
-  //     chunk->chunks[i].next = freelist;
-  //     freelist = &chunk->chunks[i];
-  //   }
-  // }
-
-  // inline void delete_escape(struct escape *e) {
-  //   e->next = freelist;
-  //   freelist = e;
-  // }
-  void ClearOldEscape(void *ptr, void *loc);
+  EscapeTable *GetEscapeTable(void *ptr);
 
  public:
   void delete_escape(struct escape *e);
@@ -131,24 +113,14 @@ class EscapeTable {
     // CHECK_CONDITION(head == nullptr);
     if (head != nullptr) {
       // Log(kLog, __FILE__, __LINE__, "Escape leak detected");
-
       while (head != nullptr) {
         struct escape *e = head;
         head = head->next;
 
-        while (e->escape_list) {
-          struct escape *cur = e->escape_list;
-          e->escape_list = cur->next;
-
-#if 0
-          if (*(reinterpret_cast<void**>(cur->addr)) == e->addr) {
-#ifdef PROTECTION_DEBUG
-            Log(kLog, __FILE__, __LINE__, "poison", cur->addr);
-#endif
-            *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t)0xdeadbeef00000000;
-          }
-#endif
-
+        struct escape *esc_list = e->escape_list;
+        while (esc_list) {
+          struct escape *cur = esc_list;
+          esc_list = cur->escape_list;
           delete_escape(cur);
         }
         delete_escape(e);
@@ -162,26 +134,28 @@ class EscapeTable {
 #ifdef PROTECTION_DEBUG
     Log(kLog, __FILE__, __LINE__, "Freeing ptr ", ptr);
 #endif
-    struct escape* list = lookup(idx);
-    if (list) {
-      while (list->escape_list) {
-        struct escape *cur = list->escape_list;
-        list->escape_list = cur->next;
-
-        void* cur_addr = *(reinterpret_cast<void**>(cur->addr));
-        if (ptr <= cur_addr && cur_addr < end) {
-#ifdef PROTECTION_DEBUG
-          Log(kLog, __FILE__, __LINE__, "poison", cur->addr, "content", *(reinterpret_cast<void**>(cur->addr)));
-#endif
-          // *(reinterpret_cast<size_t*>(cur->addr)) |= (size_t) 0xdeadbeef00000000;
-        }
-        delete_escape(cur);
-      }
-    }
+    struct escape* list = remove(idx);
+  //   while (list) {
+  //     size_t start = 0;
+  //     while (start < MAX_ESCAPES) {
+  //       for (int i=0; i<list->cnt; i++)
+  //       void* loc_content = *(reinterpret_cast<void**>(list->escapes[loc]));
+  //       if (ptr <= loc_content && loc_content < end) {
+  // #ifdef PROTECTION_DEBUG
+  //         Log(kLog, __FILE__, __LINE__, "poison", list->escapes[loc], "content", loc_content);
+  // #endif
+  //         // *(reinterpret_cast<size_t*>(list->escapes[loc])) |= (size_t) 0xdeadbeef00000000;
+  //       }
+  //       start = ++loc;
+  //     }
+  //     struct escape *cur = list;
+  //     list = list->escape_list;
+  //     delete_escape(cur);
+  //   }
   }
 
   void Insert(void **loc, int idx) {
-    struct escape *list;
+    struct escape *list, *head_list;
     void* old_ptr = *loc;
 
 #ifdef PROTECTION_DEBUG
@@ -190,23 +164,37 @@ class EscapeTable {
 
     // do not remove escape of old ptr
     // this is heavy, let the free do the check
-    ClearOldEscape(old_ptr, loc);
+#if 0
+    
+#endif
 
-    // need to convert this to
-    // a hash map
-    list = lookup(idx);
-    if (!list) {
-      list = alloc_escape();
-      list->idx = idx;
-      list->next = head;
-      head = list;
+    // might need to convert lookup to map lookup
+    head_list = lookup(idx);
+    if (!head_list) {
+      head_list = alloc_escape();
+      head_list->escape_list = nullptr;
+      head_list->idx = idx;
+      head_list->next = head;
+      head = head_list;
     }
 
-    // store the loc into ptr's escapes
-    struct escape *loc_e = alloc_escape();
-    loc_e->addr = reinterpret_cast<void*>(loc);
-    loc_e->next = list->escape_list;
-    list->escape_list = loc_e;
+    list = head_list;
+    while (true) {
+      if (list->cnt < MAX_ESCAPES) {
+        break;
+      }
+      if (list->escape_list == nullptr) {
+        list = alloc_escape();
+        list->escape_list = head_list->escape_list;
+        head_list->escape_list = list;
+        list->cnt = 0;
+        break;
+      }
+      list = list->escape_list;
+    }
+
+    // find the spot, then insert the loc
+    list->escapes[list->cnt++] = loc;
   }
 
   struct escape* lookup(int idx) {
@@ -220,10 +208,10 @@ class EscapeTable {
     return cur;
   }
 
-  struct escape* remove(struct escape **list, void *ptr) {
+  struct escape* remove(int idx) {
     struct escape *pre, *cur;
-    for (pre=nullptr, cur=*list; cur; cur = cur->next) {
-      if (cur->addr == ptr) {
+    for (pre=nullptr, cur=head; cur; cur = cur->next) {
+      if (cur->idx == idx) {
         break;
       }
       pre = cur;
@@ -231,7 +219,7 @@ class EscapeTable {
 
     if (cur) {
       if (pre == nullptr) {
-        *list = cur->next;
+        head = cur->next;
       } else {
         pre->next = cur->next;
       }
