@@ -1439,17 +1439,8 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
   return chunk_start;
 }
 
-static inline int do_escape(
-    void **loc, void* ptr) noexcept {
-  // store pointer new into loc
-  // so loc will point to new
-  // find span of new and then add to the list
-
-  // Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
-  // if (!loc_span) {
-  //   return -1;
-  // }
-
+static inline int commit_escape(
+    void **loc, void *ptr) noexcept {
   const PageId p = PageIdContaining(ptr);
   Span* span = tc_globals.pagemap().GetDescriptor(p);
   if (!span) {
@@ -1475,6 +1466,42 @@ static inline int do_escape(
   tc_globals.bc_check_cnt++;
   span->GetEscapeTable()->Insert(loc, ptr, idx);
   return 0;
+}
+
+static inline int do_escape(
+    void **loc, void* ptr) noexcept {
+  // store pointer new into loc
+  // so loc will point to new
+  // find span of new and then add to the list
+
+  // Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
+  // if (!loc_span) {
+  //   return -1;
+  // }
+  size_t current = tc_globals.current;
+  if (current == CACHE_SIZE) {
+    for (size_t i=0; i<CACHE_SIZE; i++) {
+      if (*(tc_globals.locs[i].loc) == tc_globals.locs[i].ptr) {
+        // do escapes
+        ptr = tc_globals.locs[i].ptr;
+        loc = tc_globals.locs[i].loc;
+        commit_escape(loc, ptr);
+      } else {
+        // try to delete old ptr to prevent memory leak
+      }
+    }
+    tc_globals.current = current = 0;
+  }
+
+  tc_globals.locs[current].loc = loc;
+  tc_globals.locs[current].ptr = ptr;
+  tc_globals.locs[current].old_ptr = *loc;
+  tc_globals.current++;
+  return 1;
+
+#if 0
+  
+#endif
 }
 
 static inline void do_report_error() noexcept {

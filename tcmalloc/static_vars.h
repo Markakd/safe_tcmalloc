@@ -54,6 +54,11 @@ class CpuCache;
 class PageMap;
 class ThreadCache;
 
+#define CACHE_SIZE 256
+struct EscapeLoc {
+  void **loc; void *ptr; void *old_ptr;
+};
+
 using SampledAllocationRecorder =
     ::tcmalloc::tcmalloc_internal::SampleRecorder<SampledAllocation,
                                                   SampledAllocationAllocator>;
@@ -182,6 +187,9 @@ class Static final {
   static size_t gep_check_cnt;
   static size_t bc_check_cnt;
 #endif
+
+  static size_t current;
+  static struct EscapeLoc locs[CACHE_SIZE];
 
  private:
 #if defined(__clang__)
