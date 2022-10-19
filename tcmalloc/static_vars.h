@@ -54,7 +54,7 @@ class CpuCache;
 class PageMap;
 class ThreadCache;
 
-#define CACHE_SIZE 256
+#define CACHE_SIZE 1024
 struct EscapeLoc {
   void **loc; void *ptr; void *old_ptr;
 };

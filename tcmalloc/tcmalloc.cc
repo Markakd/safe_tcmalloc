@@ -1485,9 +1485,11 @@ static inline int do_escape(
         // do escapes
         ptr = tc_globals.locs[i].ptr;
         loc = tc_globals.locs[i].loc;
+        old_ptr = tc_globals.locs[i].old_ptr;
         commit_escape(loc, ptr, old_ptr);
       } else {
         // try to delete old ptr to prevent memory leak
+        tc_globals.get_end_cnt++;
       }
     }
     tc_globals.current = current = 0;
@@ -1498,10 +1500,6 @@ static inline int do_escape(
   tc_globals.locs[current].old_ptr = *loc;
   tc_globals.current++;
   return 1;
-
-#if 0
-  
-#endif
 }
 
 static inline void do_report_error() noexcept {
