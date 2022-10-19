@@ -78,7 +78,7 @@ int main() {
 
   // escape test
   begin = clock();
-  for (int i=0; i<ALLOC_SIZE*0x10; i++) {
+  for (int i=0; i<ALLOC_SIZE*0x100; i++) {
     int x = rand() % ALLOC_SIZE;
     int y = rand() % ALLOC_SIZE;
     texas_escape(&global_escapes[x], global[y]);
