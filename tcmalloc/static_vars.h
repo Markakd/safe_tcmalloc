@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <atomic>
+#include <thread>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -54,7 +55,8 @@ class CpuCache;
 class PageMap;
 class ThreadCache;
 
-#define CACHE_SIZE 1024
+#define RING_SIZE 1024
+#define RING_MASK 1024 - 1
 struct EscapeLoc {
   void **loc; void *ptr; void *old_ptr;
 };
@@ -188,8 +190,10 @@ class Static final {
   static size_t bc_check_cnt;
 #endif
 
-  static size_t current;
-  static struct EscapeLoc locs[CACHE_SIZE];
+  static volatile int ring_head;
+  static volatile int ring_tail;
+  static struct EscapeLoc rings[RING_SIZE];
+  static std::thread escape_worker;
 
  private:
 #if defined(__clang__)

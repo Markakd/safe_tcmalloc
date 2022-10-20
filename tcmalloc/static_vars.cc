@@ -84,8 +84,10 @@ size_t Static::get_end_cnt;
 size_t Static::gep_check_cnt;
 size_t Static::bc_check_cnt;
 #endif
-size_t Static::current;
-struct EscapeLoc Static::locs[CACHE_SIZE];
+volatile int Static::ring_head;
+volatile int Static::ring_tail;
+struct EscapeLoc Static::rings[RING_SIZE];
+std::thread Static::escape_worker;
 
 size_t Static::metadata_bytes() {
   // This is ugly and doesn't nicely account for e.g. alignment losses
@@ -109,8 +111,9 @@ size_t Static::metadata_bytes() {
 #ifdef ENABLE_STATISTIC
       sizeof(size_t) * 8 +
 #endif
-      // for escape cache
-      sizeof(size_t) + sizeof(struct EscapeLoc) * CACHE_SIZE +
+      // for escape ring
+      sizeof(size_t) + sizeof(struct EscapeLoc) * RING_SIZE +
+      sizeof(std::thread) + 
       sizeof(numa_topology_) + sizeof(escape_allocator_);
   // LINT.ThenChange(:static_vars)
 

@@ -77,6 +77,9 @@ int __bc_check_boundary(void *base, size_t size) noexcept
 int __escape(void** loc, void* ptr) noexcept
     TCMALLOC_ALIAS(TCMallocInternalEscape);
 
+void __start_escape_worker() noexcept
+    TCMALLOC_ALIAS(TCMallocInternalStartEscapeWorker);
+
 void __report_statistic() noexcept
     TCMALLOC_ALIAS(TCReportStatistic);
 void __report_error() noexcept

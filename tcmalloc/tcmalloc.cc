@@ -1467,38 +1467,37 @@ static inline int commit_escape(
   return 0;
 }
 
+static inline void escape_worker() {
+  // while (1) {
+  //   printf("hello worker\n");
+  //   sleep(1);
+  // }
+  while (tc_globals.ring_head != tc_globals.ring_tail) {
+    int head = tc_globals.ring_head;
+    void **loc = tc_globals.rings[head].loc;
+    void *ptr = tc_globals.rings[head].ptr;
+    void *old_ptr = tc_globals.rings[head].old_ptr;
+
+    commit_escape(loc, ptr, old_ptr);
+    tc_globals.ring_head = (++head) & RING_MASK;
+  }
+}
+
+static inline void start_escape_worker() {
+  tc_globals.escape_worker = std::thread(escape_worker);
+}
+
 static inline int do_escape(
     void **loc, void* ptr) noexcept {
-  // store pointer new into loc
-  // so loc will point to new
-  // find span of new and then add to the list
-
-  // Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
-  // if (!loc_span) {
-  //   return -1;
+  // while (tc_globals.ring_head - 1 == tc_globals.ring_tail) {
+  //   CHECK_CONDITION(0 && "ring is full");
   // }
-  void *old_ptr = nullptr;
-  size_t current = tc_globals.current;
-  if (current == CACHE_SIZE) {
-    for (size_t i=0; i<CACHE_SIZE; i++) {
-      if (*(tc_globals.locs[i].loc) == tc_globals.locs[i].ptr) {
-        // do escapes
-        ptr = tc_globals.locs[i].ptr;
-        loc = tc_globals.locs[i].loc;
-        old_ptr = tc_globals.locs[i].old_ptr;
-        commit_escape(loc, ptr, old_ptr);
-      } else {
-        // try to delete old ptr to prevent memory leak
-        tc_globals.get_end_cnt++;
-      }
-    }
-    tc_globals.current = current = 0;
-  }
 
-  tc_globals.locs[current].loc = loc;
-  tc_globals.locs[current].ptr = ptr;
-  tc_globals.locs[current].old_ptr = *loc;
-  tc_globals.current++;
+  int tail = tc_globals.ring_tail;
+  tc_globals.rings[tail].loc = loc;
+  tc_globals.rings[tail].ptr = ptr;
+  tc_globals.rings[tail].old_ptr = *loc;
+  tc_globals.ring_tail = (++tail) & RING_MASK;
   return 1;
 }
 
@@ -1582,6 +1581,7 @@ using tcmalloc::tcmalloc_internal::UsePerCpuCache;
 using tcmalloc::tcmalloc_internal::do_gep_check_boundary;
 using tcmalloc::tcmalloc_internal::do_bc_check_boundary;
 using tcmalloc::tcmalloc_internal::do_escape;
+using tcmalloc::tcmalloc_internal::start_escape_worker;
 using tcmalloc::tcmalloc_internal::do_get_chunk_range;
 using tcmalloc::tcmalloc_internal::do_report_error;
 using tcmalloc::tcmalloc_internal::do_report_statistic;
@@ -1980,6 +1980,12 @@ extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalEscape(
 #endif
 #ifdef ENABLE_PROTECTION
   return do_escape(loc, ptr);
+#endif
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalStartEscapeWorker() noexcept {
+#ifdef ENABLE_PROTECTION
+  start_escape_worker();
 #endif
 }
 
