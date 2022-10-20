@@ -1485,13 +1485,14 @@ static inline void escape_worker() {
 
 static inline void start_escape_worker() {
   tc_globals.escape_worker = std::thread(escape_worker);
+  tc_globals.escape_worker.join();
 }
 
 static inline int do_escape(
     void **loc, void* ptr) noexcept {
-  // while (tc_globals.ring_head - 1 == tc_globals.ring_tail) {
-  //   CHECK_CONDITION(0 && "ring is full");
-  // }
+  while (tc_globals.ring_head - 1 == tc_globals.ring_tail) {
+    CHECK_CONDITION(0 && "ring is full");
+  }
 
   int tail = tc_globals.ring_tail;
   tc_globals.rings[tail].loc = loc;
