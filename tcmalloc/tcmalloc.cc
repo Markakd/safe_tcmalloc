@@ -1453,20 +1453,12 @@ static inline int do_escape(
   tc_globals.escape_valid_cnt++;
 #endif
 
-  if (!tc_globals.pagemap().GetDescriptor(PageIdContaining(loc)))
-    return -1;
-
+  if (tc_globals.pagemap().GetDescriptor(PageIdContaining(loc))) {
 #ifdef ENABLE_STATISTIC
   tc_globals.escape_heap_cnt++;
 #endif
+  }
 
-  // for (size_t size_class=1; size_class <100; size_class++) {
-  //   size_t span_size =
-  //         Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
-  //   size_t allocated_size = tc_globals.sizemap().class_to_size(size_class);
-  //   size_t objects_per_span = span_size / allocated_size;
-  //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
-  // }
   if (span->obj_size == 0) return -1;
   int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
   span->GetEscapeTable()->Insert(loc, idx);

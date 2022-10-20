@@ -92,11 +92,7 @@ class EscapeTable {
   // TODO: we need a lock here
   // absl::base_internal::SpinLock freelist_lock;
 
-  struct escape** escapes;
-
-  // EscapeTable() {
-  //   escapes = alloc_escape_array();
-  // }
+  struct escape** escapes = nullptr;
 
   void Erase(void **loc, void *old);
 
@@ -137,6 +133,8 @@ class EscapeTable {
 #endif
         *(reinterpret_cast<size_t*>(c->addr)) |= (size_t) 0xdeadbeef00000000;
       }
+      
+      e = e->next;
       delete_escape(c);
     }
   }
@@ -148,12 +146,12 @@ class EscapeTable {
     void* old_ptr = *loc;
 
 #ifdef PROTECTION_DEBUG
-    printf("loc %p, old_ptr %p ptr %p\n", loc, old_ptr, ptr);
+    printf("loc %p, old_ptr %p idx %d\n", loc, old_ptr, idx);
 #endif
 
     // do not remove escape of old ptr
     // this is heavy, let the free do the check
-    Erase(loc, old_ptr);
+    // Erase(loc, old_ptr);
 
     struct escape *c = alloc_escape();
     c->addr = loc;
@@ -162,13 +160,24 @@ class EscapeTable {
   }
 
   void Remove(void **loc, int idx) {
-    // struct escape *e = escapes[idx], *p = nullptr;
+    struct escape *e = escapes[idx], *p = nullptr;
 
-    // while (e) {
-    //   if (e->loc == loc) {
-         
-    //   }
-    // } 
+    while (e) {
+      struct escape *c = e;
+      if (c->addr == loc) {
+          if (p == nullptr) {
+            escapes[idx] = c->next;
+          } else {
+            p->next = c->next;
+          }
+
+          e = c->next;
+          delete_escape(c);
+      } else {
+        p = c;
+        e = c->next;
+      }
+    } 
   }
 };
 
