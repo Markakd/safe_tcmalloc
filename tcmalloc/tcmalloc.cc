@@ -1463,35 +1463,35 @@ static inline int commit_escape(
   }
 
   tc_globals.bc_check_cnt++;
-  span->GetEscapeTable()->Insert(loc, ptr, idx);
+  span->GetEscapeTable()->Insert(loc, ptr, idx, old_ptr);
   return 0;
 }
 
 static inline void escape_worker() {
-  // while (1) {
-  //   printf("hello worker\n");
-  //   sleep(1);
-  // }
-  while (tc_globals.ring_head != tc_globals.ring_tail) {
-    int head = tc_globals.ring_head;
-    void **loc = tc_globals.rings[head].loc;
-    void *ptr = tc_globals.rings[head].ptr;
-    void *old_ptr = tc_globals.rings[head].old_ptr;
+  while (true) {
+    while (tc_globals.ring_head != tc_globals.ring_tail) {
+      int head = tc_globals.ring_head;
+      void **loc = tc_globals.rings[head].loc;
+      void *ptr = tc_globals.rings[head].ptr;
+      void *old_ptr = tc_globals.rings[head].old_ptr;
 
-    commit_escape(loc, ptr, old_ptr);
-    tc_globals.ring_head = (++head) & RING_MASK;
+      commit_escape(loc, ptr, old_ptr);
+      tc_globals.ring_head = (++head) & RING_MASK;
+      // printf("done\n");
+    }
   }
 }
 
 static inline void start_escape_worker() {
   tc_globals.escape_worker = std::thread(escape_worker);
-  tc_globals.escape_worker.join();
+  // tc_globals.escape_worker.join();
 }
 
 static inline int do_escape(
     void **loc, void* ptr) noexcept {
   while (tc_globals.ring_head - 1 == tc_globals.ring_tail) {
-    CHECK_CONDITION(0 && "ring is full");
+    // commit_escape(loc, ptr, *loc);
+    // printf("ring is full\n");
   }
 
   int tail = tc_globals.ring_tail;
@@ -1551,6 +1551,8 @@ static inline void do_report_statistic() {
   fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
+  // std::terminate(tc_globals.escape_worker);
+  tc_globals.escape_worker.detach();
 #endif
 }
 

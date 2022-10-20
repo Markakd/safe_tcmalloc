@@ -55,8 +55,8 @@ class CpuCache;
 class PageMap;
 class ThreadCache;
 
-#define RING_SIZE 1024
-#define RING_MASK 1024 - 1
+#define RING_SIZE 2048
+#define RING_MASK RING_SIZE - 1
 struct EscapeLoc {
   void **loc; void *ptr; void *old_ptr;
 };
