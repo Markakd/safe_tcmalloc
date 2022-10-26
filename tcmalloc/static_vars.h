@@ -207,7 +207,6 @@ class Static final {
   static PageHeapAllocator<ThreadCache> threadcache_allocator_;
   static PageHeapAllocator<EscapeChunk> escape_allocator_;
   static PageHeapAllocator<StackTraceTable::Bucket> bucket_allocator_;
-  static PageHeapMetaDataAllocator heap_metadata_allocator_;
   ABSL_CONST_INIT static std::atomic<bool> inited_;
   ABSL_CONST_INIT static std::atomic<bool> cpu_cache_active_;
   ABSL_CONST_INIT static PeakHeapTracker peak_heap_tracker_;

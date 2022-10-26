@@ -87,66 +87,6 @@ class PageHeapAllocator {
   AllocatorStats stats_ ABSL_GUARDED_BY(pageheap_lock);
 };
 
-// the metadata is 512 bytes for each allocation
-// the allocator blow is intended to avoid acquiring
-// the pageheap lock, thus avoid slowing down the 
-// multi-thread performance. This is not used for now.
-class PageHeapMetaDataAllocator {
-  public:
-
-  constexpr PageHeapMetaDataAllocator()
-      : arena_(nullptr), free_list_(nullptr), stats_{0, 0} {}
-  
-  // TODO: use one more lock for freelist
-  // absl::base_internal::SpinLock freelist_lock;
-
-  // We use an explicit Init function because these variables are statically
-  // allocated and their constructors might not have run by the time some
-  // other static variable tries to allocate memory.
-  void Init(Arena* arena) ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock) {
-    arena_ = arena;
-    // Reserve some space at the beginning to avoid fragmentation.
-    Delete(New());
-  }
-
-  ABSL_ATTRIBUTE_RETURNS_NONNULL void* New()
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock) {
-    // Consult free list
-    void* result = free_list_;
-    stats_.in_use++;
-    if (ABSL_PREDICT_FALSE(result == nullptr)) {
-      stats_.total++;
-      return reinterpret_cast<void*>(Alloc());
-    }
-    free_list_ = *(reinterpret_cast<void**>(free_list_));
-    return result;
-  }
-
-  void *Alloc() ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock) {
-    return arena_->Alloc(512);
-  }
-
-  void Delete(void* p) ABSL_ATTRIBUTE_NONNULL()
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock) {
-    *(reinterpret_cast<void**>(p)) = free_list_;
-    free_list_ = p;
-    stats_.in_use--;
-  }
-
-  AllocatorStats stats() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock) {
-    return stats_;
-  }
-
- private:
-  // Arena from which to allocate memory
-  Arena* arena_;
-
-  // Free list of already carved objects
-  void* free_list_ ABSL_GUARDED_BY(freelist_lock);
-
-  AllocatorStats stats_ ABSL_GUARDED_BY(pageheap_lock);
-};
-
 }  // namespace tcmalloc_internal
 }  // namespace tcmalloc
 GOOGLE_MALLOC_SECTION_END
