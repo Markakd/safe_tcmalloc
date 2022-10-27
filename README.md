@@ -28,6 +28,8 @@ ldd -r ./test.out
 1. enable GPROF in menuconfig
 2. re-build the safe_tcmalloc
 3. exec tcmalloc/build_static.sh to generate .a file
+4. compile your file by v++ and exec it, after normally exit, a ```gmon.out``` will be generated.
+5. then exec: ```gprof yourfile gmon.out > analysis.txt```
 
 # TCMalloc
 
