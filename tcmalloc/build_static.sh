@@ -16,4 +16,7 @@ cd static
 for i in `ls *.a`; do ar x $i;done
 ar rcs libtcmalloc.a *.o
 
-cp libtcmalloc.a ../
+cd ..
+
+gcc gprof.c -c
+cp gprof.o ./static
