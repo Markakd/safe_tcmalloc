@@ -24,6 +24,10 @@ ls -lh ./test.out
 ldd -r ./test.out
 ```
 
+# Safe Tcmalloc Gprof Support
+1. enable GPROF in menuconfig
+2. re-build the safe_tcmalloc
+3. exec tcmalloc/build_static.sh to generate .a file
 
 # TCMalloc
 
