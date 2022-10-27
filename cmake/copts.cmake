@@ -22,8 +22,7 @@ set(TCMALLOC_LLVM_FLAGS -Wno-deprecated-declarations
 -Wno-sign-compare
 -Wno-uninitialized
 -Wno-unused-function
--Wno-unused-variable 
-)
+-Wno-unused-variable)
 
 set(TCMALLOC_GCC_FLAGS -Wno-attribute-alias
   -Wno-sign-compare
@@ -31,8 +30,7 @@ set(TCMALLOC_GCC_FLAGS -Wno-attribute-alias
   -Wno-unused-function
   # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66425
   -Wno-unused-result
-  -Wno-unused-variable 
-  )
+  -Wno-unused-variable)
 
 if (ENABLE_GPROF)
 set(TCMALLOC_GPROF -pg)
@@ -43,8 +41,6 @@ endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 set(TCMALLOC_DEFAULT_COPTS ${TCMALLOC_LLVM_FLAGS} ${TCMALLOC_GPROF})
-message(${TCMALLOC_DEFAULT_COPTS})
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 set(TCMALLOC_DEFAULT_COPTS ${TCMALLOC_GCC_FLAGS} ${TCMALLOC_GPROF})
-message(${TCMALLOC_DEFAULT_COPTS})
 endif()
