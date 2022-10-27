@@ -21,3 +21,8 @@ config ENABLE_ERROR_REPORT
 	bool "Enable error report"
 	depends on ENABLE_PROTECTION
 	default n
+
+config ENABLE_GPROF
+	bool "Enable gprof"
+	depends on ENABLE_PROTECTION
+	default n
