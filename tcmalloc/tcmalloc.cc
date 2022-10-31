@@ -1444,32 +1444,36 @@ static inline int do_escape(
   // store pointer new into loc
   // so loc will point to new
   // find span of new and then add to the list
+
+  // Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
+  // if (!loc_span) {
+  //   return -1;
+  // }
+
   const PageId p = PageIdContaining(ptr);
   Span* span = tc_globals.pagemap().GetDescriptor(p);
   if (!span) {
     return -1;
   }
+
+  size_t obj_size = span->obj_size;
+  if (obj_size == 0)
+    return -1;
 #ifdef ENABLE_STATISTIC
   tc_globals.escape_valid_cnt++;
 #endif
+  int idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+  size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
-  if (!tc_globals.pagemap().GetDescriptor(PageIdContaining(loc)))
+  void *old_ptr = *loc;
+  if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
+    // same loc, optimize this
+    tc_globals.gep_check_cnt++;
     return -1;
+  }
 
-#ifdef ENABLE_STATISTIC
-  tc_globals.escape_heap_cnt++;
-#endif
-
-  // for (size_t size_class=1; size_class <100; size_class++) {
-  //   size_t span_size =
-  //         Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
-  //   size_t allocated_size = tc_globals.sizemap().class_to_size(size_class);
-  //   size_t objects_per_span = span_size / allocated_size;
-  //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
-  // }
-  if (span->obj_size == 0) return -1;
-  int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
-  span->GetEscapeTable()->Insert(loc, idx);
+  tc_globals.bc_check_cnt++;
+  span->GetEscapeTable()->Insert(loc, ptr, idx);
   return 0;
 }
 
