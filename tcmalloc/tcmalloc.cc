@@ -1445,34 +1445,35 @@ static inline int do_escape(
   // so loc will point to new
   // find span of new and then add to the list
 
-  // Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
-  // if (!loc_span) {
-  //   return -1;
-  // }
+  // this is cheap but optimizes a lot for perl
+  Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
+  if (!loc_span) {
+    return -1;
+  }
+  tc_globals.escape_heap_cnt++;
 
-  const PageId p = PageIdContaining(ptr);
-  Span* span = tc_globals.pagemap().GetDescriptor(p);
+  Span* span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
   if (!span) {
     return -1;
   }
+  tc_globals.escape_valid_cnt++;
 
+  // FIXME: obj_size shouldn't be 0
   size_t obj_size = span->obj_size;
   if (obj_size == 0)
     return -1;
-#ifdef ENABLE_STATISTIC
-  tc_globals.escape_valid_cnt++;
-#endif
+
   int idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
   void *old_ptr = *loc;
   if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
     // same loc, optimize this
-    tc_globals.gep_check_cnt++;
-    return -1;
+    tc_globals.escape_loc_optimized++;
+    return 0;
   }
 
-  tc_globals.bc_check_cnt++;
+  tc_globals.escape_final_cnt++;
   span->GetEscapeTable()->Insert(loc, ptr, idx);
   return 0;
 }
@@ -1518,11 +1519,13 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 
 static inline void do_report_statistic() {
 #ifdef ENABLE_STATISTIC
-  fprintf(stderr, "\nmalloc count\t: %ld\n", tc_globals.malloc_cnt);
-  fprintf(stderr, "free count\t: %ld\n", tc_globals.free_cnt);
-  fprintf(stderr, "escape count\t: %ld\n", tc_globals.escape_cnt);
+  fprintf(stderr, "\nmalloc count\t\t: %ld\n", tc_globals.malloc_cnt);
+  fprintf(stderr, "free count\t\t: %ld\n", tc_globals.free_cnt);
+  fprintf(stderr, "escape count\t\t: %ld\n", tc_globals.escape_cnt);
   fprintf(stderr, "escape valid count\t: %ld\n", tc_globals.escape_valid_cnt);
   fprintf(stderr, "escape heap count\t: %ld\n", tc_globals.escape_heap_cnt);
+  fprintf(stderr, "escape optimized count\t: %ld\n", tc_globals.escape_loc_optimized);
+  fprintf(stderr, "escape final count\t: %ld\n", tc_globals.escape_final_cnt);
   fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);

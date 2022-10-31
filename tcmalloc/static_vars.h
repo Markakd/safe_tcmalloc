@@ -178,6 +178,8 @@ class Static final {
   static size_t escape_cnt;
   static size_t escape_valid_cnt;
   static size_t escape_heap_cnt;
+  static size_t escape_loc_optimized;
+  static size_t escape_final_cnt;
   static size_t get_end_cnt;
   static size_t gep_check_cnt;
   static size_t bc_check_cnt;
