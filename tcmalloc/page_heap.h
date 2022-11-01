@@ -154,6 +154,7 @@ class PageHeap final : public PageAllocatorInterface {
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock);
 
   void RecordSpan(Span* span) ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock);
+  void RecordSpanPages(Span* span) ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock);
 };
 
 }  // namespace tcmalloc_internal
