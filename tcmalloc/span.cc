@@ -63,7 +63,15 @@ void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
   Span *span = tc_globals.pagemap().GetDescriptor(p);
   if (span && span->obj_size > 0) {
     EscapeTable* table = span->GetEscapeTable();
-    int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
+
+    unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
+    // printf("idx %u ptr %p span start addr %p size %lx\n", idx, ptr, span->start_address(), span->obj_size);
+
+    // FIXME: than span start maybe outdated
+    // if ((size_t)ptr < (size_t)span->start_address())
+    if (idx >= 1024)
+      return;
+
     table->remove(idx, loc);
   }
   return;

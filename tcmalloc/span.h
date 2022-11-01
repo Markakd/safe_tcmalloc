@@ -102,8 +102,10 @@ class EscapeTable {
 
   struct escape **escape_list = nullptr;
 
-  inline void remove(int idx, void *loc) {
+  inline void remove(unsigned idx, void *loc) {
     struct escape *pre, *cur;
+    if (escape_list == nullptr)
+      return;
     for (pre=nullptr, cur=escape_list[idx]; cur; cur = cur->next) {
       if (cur->loc == loc) {
         if (pre) {
@@ -112,6 +114,7 @@ class EscapeTable {
           escape_list[idx] = cur->next;
         }
         delete_escape(cur);
+        break;
       }
       pre = cur;
     }
