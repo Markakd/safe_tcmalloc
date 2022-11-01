@@ -36,10 +36,13 @@ namespace tcmalloc_internal {
 
 // Helper function to record span address into pageheap
 void PageHeap::RecordSpan(Span* span) {
-  // pagemap_->Set(span->first_page(), span);
-  // if (span->num_pages() > Length(1)) {
-  //   pagemap_->Set(span->last_page(), span);
-  // }
+  pagemap_->Set(span->first_page(), span);
+  if (span->num_pages() > Length(1)) {
+    pagemap_->Set(span->last_page(), span);
+  }
+}
+
+void PageHeap::RecordSpanPages(Span* span) {
   for (PageId p = span->first_page(); p <= span->last_page(); ++p) {
     pagemap_->Set(p, span);
   }
@@ -112,6 +115,8 @@ Span* PageHeap::New(Length n, size_t objects_per_span) {
   }
 
   ASSERT(!result || GetMemoryTag(result->start_address()) == tag_);
+
+  RecordSpanPages(result);
   return result;
 }
 
@@ -164,7 +169,7 @@ Span* PageHeap::NewAligned(Length n, Length align, size_t objects_per_span) {
     Length after = extra - before;
     span->set_first_page(aligned);
     span->set_num_pages(n);
-    RecordSpan(span);
+    RecordSpanPages(span);
 
     const Span::Location loc =
         from_returned ? Span::ON_RETURNED_FREELIST : Span::ON_NORMAL_FREELIST;
@@ -274,6 +279,9 @@ void PageHeap::Delete(Span* span, size_t objects_per_span) {
   ASSERT(pagemap_->GetDescriptor(span->first_page()) == span);
   ASSERT(pagemap_->GetDescriptor(span->last_page()) == span);
   span->set_location(Span::ON_NORMAL_FREELIST);
+
+  // destroy escape list of the span
+  span->DestroyEscape();
   MergeIntoFreeList(span);  // Coalesces if possible
   ASSERT(Check());
 }

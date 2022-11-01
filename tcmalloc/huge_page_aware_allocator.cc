@@ -459,12 +459,14 @@ void HugePageAwareAllocator::Delete(Span* span, size_t objects_per_span) {
   Length n = span->num_pages();
   info_.RecordFree(p, n, objects_per_span);
 
-  Span::Delete(span);
   // Clear the descriptor of the page so a second pass through the same page
   // could trigger the check on `span != nullptr` in do_free_pages.
-  
-  // TODO
-  tc_globals.pagemap().Set(p, nullptr);
+  for (; p <= span->last_page(); ++p) {
+    tc_globals.pagemap().Set(p, nullptr);
+  }
+
+  span->DestroyEscape();
+  Span::Delete(span);
 
   // The tricky part, as with so many allocators: where did we come from?
   // There are several possibilities.
