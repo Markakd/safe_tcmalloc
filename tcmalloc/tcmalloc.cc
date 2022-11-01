@@ -879,7 +879,7 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
   }
 
   Span* span_ = tc_globals.pagemap().GetExistingDescriptor(PageIdContaining(result));
-  span->obj_size = GetSize(result);
+  span_->obj_size = GetSize(result);
   return result;
 }
 
