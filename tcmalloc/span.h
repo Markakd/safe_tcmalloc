@@ -101,6 +101,7 @@ class EscapeTable {
   // absl::base_internal::SpinLock freelist_lock;
 
   struct escape **escape_list = nullptr;
+  size_t *escape_cnts = nullptr;
 
   inline void remove(unsigned idx, void *loc) {
     struct escape *pre, *cur;
@@ -114,6 +115,7 @@ class EscapeTable {
           escape_list[idx] = cur->next;
         }
         delete_escape(cur);
+        escape_cnts[idx]--;
         break;
       }
       pre = cur;
@@ -146,6 +148,7 @@ class EscapeTable {
     }
 
     delete_escape_list(escape_list);
+    delete_escape_list((struct escape**)escape_cnts);
     escape_list = nullptr;
   }
 
@@ -156,6 +159,10 @@ class EscapeTable {
 #endif
     if (escape_list == nullptr)
       return;
+    
+    if (escape_cnts[idx] > 1000) {
+      printf("freeing ptr %p, idx %d with %ld refs\n", ptr, idx, escape_cnts[idx]);
+    }
 
     struct escape* cur = escape_list[idx];
     while (cur) {
@@ -181,14 +188,21 @@ class EscapeTable {
     ClearOldEscape(*loc, (void *)loc);
 
     CHECK_CONDITION(idx < 1024);
-    if (escape_list == nullptr)
+    if (escape_list == nullptr) {
       escape_list = alloc_escape_list();
+      escape_cnts = (size_t *)alloc_escape_list();
+    }
 
     // store the loc into ptr's escapes
     struct escape *loc_e = alloc_escape();
     loc_e->loc = reinterpret_cast<void*>(loc);
     loc_e->next = escape_list[idx];
     escape_list[idx] = loc_e;
+    escape_cnts[idx]++;
+
+    if (escape_cnts[idx] > 100) {
+      printf("ptr %p idx %d has refs %ld\n", ptr, idx, escape_cnts[idx]);
+    }
   }
 };
 
@@ -713,7 +727,7 @@ inline void Span::Prefetch() {
 #else
   // The Span can occupy two cache lines, so prefetch the cacheline with the
   // most frequently accessed parts of the Span.
-  static_assert(sizeof(Span) == 64, "Update span prefetch offset");
+  static_assert(sizeof(Span) == 64+8, "Update span prefetch offset");
   __builtin_prefetch(&this->allocated_, 0, 3);
 #endif
 #endif
