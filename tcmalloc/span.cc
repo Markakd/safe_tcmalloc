@@ -67,12 +67,15 @@ void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
     unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
     // printf("idx %u ptr %p span start addr %p size %lx\n", idx, ptr, span->start_address(), span->obj_size);
 
-    // FIXME: than span start maybe outdated
+    // FIXME: the span start maybe outdated
     // if ((size_t)ptr < (size_t)span->start_address())
     if (idx >= 1024)
       return;
-
-    table->remove(idx, loc);
+    if (table->escape_list != nullptr) {
+      if (table->escape_cnts[idx] > 100)
+        printf("ptr %p idx %d has %ld refs\n", ptr, idx, table->escape_cnts[idx]);
+      table->remove(idx, loc);
+    }
   }
   return;
 }

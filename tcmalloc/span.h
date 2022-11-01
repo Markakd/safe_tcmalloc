@@ -99,14 +99,12 @@ class EscapeList {
 class EscapeTable {
   // TODO: we need a lock here
   // absl::base_internal::SpinLock freelist_lock;
-
+ public:
   struct escape **escape_list = nullptr;
   size_t *escape_cnts = nullptr;
 
   inline void remove(unsigned idx, void *loc) {
     struct escape *pre, *cur;
-    if (escape_list == nullptr)
-      return;
     for (pre=nullptr, cur=escape_list[idx]; cur; cur = cur->next) {
       if (cur->loc == loc) {
         if (pre) {
@@ -123,7 +121,6 @@ class EscapeTable {
   }
   
   void ClearOldEscape(void *ptr, void *loc);
- public:
   void delete_escape(struct escape *e);
   struct escape* alloc_escape();
   void delete_escape_list(struct escape **list);
@@ -187,7 +184,11 @@ class EscapeTable {
     // this is heavy, let the free do the check
     ClearOldEscape(*loc, (void *)loc);
 
-    CHECK_CONDITION(idx < 1024);
+    // CHECK_CONDITION(idx < 1024);
+    if (idx >= 1024) {
+      printf("BUG: ptr %p, obj_start %p size %ld idx %d \n", ptr, obj_start, obj_size, idx);
+      return;
+    }
     if (escape_list == nullptr) {
       escape_list = alloc_escape_list();
       escape_cnts = (size_t *)alloc_escape_list();
@@ -201,7 +202,7 @@ class EscapeTable {
     escape_cnts[idx]++;
 
     if (escape_cnts[idx] > 100) {
-      printf("ptr %p, obj_start %p size %ld idx %d has refs %ld\n", ptr, obj_start, obj_size, idx, escape_cnts[idx]);
+      printf("loc %p ptr %p, obj_start %p size %ld idx %d has refs %ld\n", loc, ptr, obj_start, obj_size, idx, escape_cnts[idx]);
     }
   }
 };
