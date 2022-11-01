@@ -999,6 +999,10 @@ static void do_free_pages(void* ptr, const PageId p) {
         pageheap_lock.Unlock();
         tc_globals.guardedpage_allocator().Deallocate(ptr);
         pageheap_lock.Lock();
+        span->DestroyEscape();
+        for (PageId p = span->first_page(); p <= span->last_page(); ++p) {
+          tc_globals.pagemap().Set(p, nullptr);
+        }
         Span::Delete(span);
       } else if (IsColdMemory(ptr)) {
         ASSERT(reinterpret_cast<uintptr_t>(ptr) % kPageSize == 0);
