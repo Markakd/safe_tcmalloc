@@ -33,6 +33,16 @@ GOOGLE_MALLOC_SECTION_BEGIN
 namespace tcmalloc {
 namespace tcmalloc_internal {
 
+struct escape** EscapeTable::alloc_escape_list() {
+  struct escape **list = reinterpret_cast<struct escape **>(Static::escape_list_allocator().New());
+  memset(list, 0, 1024*sizeof(struct escape *));
+  return list;
+}
+
+void EscapeTable::delete_escape_list(struct escape **list) {
+  Static::escape_list_allocator().Delete(reinterpret_cast<EscapeList*>(list));
+}
+
 struct escape* EscapeTable::alloc_escape() {
 #ifdef PROTECTION_DEBUG
   Log(kLog, __FILE__, __LINE__, "alloc escape");
@@ -54,11 +64,7 @@ void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
   if (span && span->obj_size > 0) {
     EscapeTable* table = span->GetEscapeTable();
     int idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
-    struct escape *e = table->lookup(idx);
-    if (!e)
-      return;
-    struct escape *e_loc = table->remove(&e->escape_list, loc);
-    if (e_loc) table->delete_escape(e_loc);
+    table->remove(idx, loc);
   }
   return;
 }
