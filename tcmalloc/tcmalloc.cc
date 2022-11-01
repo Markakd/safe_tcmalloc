@@ -1474,7 +1474,7 @@ static inline int do_escape(
   }
 
   tc_globals.escape_final_cnt++;
-  span->GetEscapeTable()->Insert(loc, ptr, idx);
+  span->GetEscapeTable()->Insert(loc, ptr, (void*)obj_start, idx, obj_size);
   return 0;
 }
 

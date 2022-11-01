@@ -180,7 +180,7 @@ class EscapeTable {
     escape_list[idx] = nullptr;
   }
 
-  inline void Insert(void **loc, void *ptr, int idx) {
+  inline void Insert(void **loc, void *ptr, void *obj_start, int idx, size_t obj_size) {
     struct escape *list;
 
     // do not remove escape of old ptr
@@ -201,7 +201,7 @@ class EscapeTable {
     escape_cnts[idx]++;
 
     if (escape_cnts[idx] > 100) {
-      printf("ptr %p idx %d has refs %ld\n", ptr, idx, escape_cnts[idx]);
+      printf("ptr %p, obj_start %p size %ld idx %d has refs %ld\n", ptr, obj_start, obj_size, idx, escape_cnts[idx]);
     }
   }
 };
