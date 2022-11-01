@@ -55,6 +55,7 @@ ABSL_CONST_INIT SampledAllocationAllocator Static::sampledallocation_allocator_;
 ABSL_CONST_INIT PageHeapAllocator<Span> Static::span_allocator_;
 ABSL_CONST_INIT PageHeapAllocator<ThreadCache> Static::threadcache_allocator_;
 ABSL_CONST_INIT PageHeapAllocator<EscapeChunk> Static::escape_allocator_;
+ABSL_CONST_INIT PageHeapAllocator<EscapeList> Static::escape_list_allocator_;
 ABSL_CONST_INIT ExplicitlyConstructed<SampledAllocationRecorder>
     Static::sampled_allocation_recorder_;
 ABSL_CONST_INIT tcmalloc_internal::StatsCounter Static::sampled_objects_size_;
@@ -109,7 +110,8 @@ size_t Static::metadata_bytes() {
 #ifdef ENABLE_STATISTIC
       sizeof(size_t) * 10 +
 #endif
-      sizeof(numa_topology_) + sizeof(escape_allocator_);
+      sizeof(numa_topology_) + sizeof(escape_allocator_) +
+      sizeof(escape_list_allocator_);
   // LINT.ThenChange(:static_vars)
 
   const size_t allocated = arena().stats().bytes_allocated +
@@ -139,6 +141,7 @@ ABSL_ATTRIBUTE_COLD ABSL_ATTRIBUTE_NOINLINE void Static::SlowInitIfNecessary() {
     span_allocator_.New();  // Reduce cache conflicts
     bucket_allocator_.Init(&arena_);
     escape_allocator_.Init(&arena_);
+    escape_list_allocator_.Init(&arena_);
     // Do a bit of sanitizing: make sure central_cache is aligned properly
     CHECK_CONDITION((sizeof(transfer_cache_) % ABSL_CACHELINE_SIZE) == 0);
     transfer_cache_.Init();
