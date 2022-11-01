@@ -1445,6 +1445,14 @@ static inline int do_escape(
   // so loc will point to new
   // find span of new and then add to the list
 
+  // for (size_t size_class=1; size_class <100; size_class++) {
+  //   size_t span_size =
+  //         Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
+  //   size_t allocated_size = tc_globals.sizemap().class_to_size(size_class);
+  //   size_t objects_per_span = span_size / allocated_size;
+  //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
+  // }
+
   // this is cheap but optimizes a lot for perl
   Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
   if (!loc_span) {
@@ -1463,7 +1471,7 @@ static inline int do_escape(
   if (obj_size == 0)
     return -1;
 
-  int idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+  unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
   void *old_ptr = *loc;
