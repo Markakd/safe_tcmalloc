@@ -354,7 +354,8 @@ class Span : public SpanList::Elem {
   // Length GetObjSize() { return obj_size; }
 
   static constexpr size_t kCacheSize = 4;
-  size_t obj_size;
+  uint32_t obj_size;
+  uint32_t objects_per_span;
 
  private:
   // See the comment on freelist organization in cc file.

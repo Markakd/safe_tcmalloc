@@ -878,8 +878,27 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
                                                   nullptr, span, capacity));
   }
 
-  Span* span_ = tc_globals.pagemap().GetExistingDescriptor(PageIdContaining(result));
-  span_->obj_size = GetSize(result);
+  const PageId p = PageIdContaining(result);
+  Span* span_ = tc_globals.pagemap().GetExistingDescriptor(p);
+  size_t obj_size, span_size;
+  size_t size_class = tc_globals.pagemap().sizeclass(p);
+  if (size_class != 0) {
+    obj_size = tc_globals.sizemap().class_to_size(size_class);
+    span_size = Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
+  } else {
+    if (span_->sampled()) {
+      if (tc_globals.guardedpage_allocator().PointerIsMine(result)) {
+        obj_size = tc_globals.guardedpage_allocator().GetRequestedSize(result);
+      }
+      obj_size = span_->sampled_allocation()->sampled_stack.allocated_size;
+    } else {
+      obj_size = span_->bytes_in_span();
+    }
+    span_size = span_->bytes_in_span();
+    CHECK_CONDITION(span_size == obj_size);
+  }
+  span_->obj_size = (uint32_t)obj_size;
+  span_->objects_per_span = (uint32_t)(span_size/obj_size);
   return result;
 }
 
