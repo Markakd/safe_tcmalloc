@@ -845,6 +845,50 @@ inline size_t GetSize(const void* ptr) {
   }
 }
 
+static inline struct escape** alloc_escape_list() {
+  struct escape **list = (struct escape **)Static::escape_list_allocator().New();
+  memset(list, 0, 1024*sizeof(struct escape *));
+  return list;
+}
+
+static inline void delete_escape_list(struct escape **list) {
+  Static::escape_list_allocator().Delete(reinterpret_cast<EscapeList*>(list));
+}
+
+static inline struct escape* alloc_escape() {
+  // no need to zero memory
+  return (struct escape *)Static::escape_allocator().New();
+}
+
+static inline void delete_escape(struct escape *e) {
+  Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
+}
+
+static inline void insert_escape(void **loc, void *ptr,
+    unsigned idx) {
+  // todo
+  return;
+}
+
+static inline void poison_escapes(Span *span, int idx,
+    void *ptr, void *end) {
+  struct escape **escape_list = span->escape_list;
+  if (!escape_list || !escape_list[idx])
+    return;
+
+  struct escape* cur = escape_list[idx];
+  while (cur) {
+    struct escape *next = cur->next;
+    void* cur_addr = *(reinterpret_cast<void**>(cur->loc));
+    if (ptr <= cur_addr && cur_addr < end) {
+      // *(reinterpret_cast<size_t*>(cur->loc)) |= (size_t) 0xdeadbeef00000000;
+    }
+    delete_escape(cur);
+    cur = next;
+  }
+  escape_list[idx] = nullptr;
+}
+
 template <typename Policy, typename CapacityPtr = std::nullptr_t>
 inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
                              CapacityPtr capacity = nullptr) {
@@ -1086,7 +1130,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     }
     // free all escapes to p
     int idx = ((size_t)ptr - start_addr) / obj_size;
-    span_->GetEscapeTable()->Free(idx, ptr, (char*)ptr + obj_size);
+    poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
       Log(kLogWithStack, __FILE__, __LINE__,
@@ -1166,7 +1210,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     }
     // free all escapes to p
     int idx = ((size_t)ptr - start_addr) / obj_size;
-    span_->GetEscapeTable()->Free(idx, ptr, (char*)ptr + obj_size);
+    poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
       Log(kLogWithStack, __FILE__, __LINE__,
@@ -1475,6 +1519,7 @@ static inline int do_escape(
   //   size_t objects_per_span = span_size / allocated_size;
   //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
   // }
+  return 1;
 
   // this is cheap but optimizes a lot for perl
   Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
@@ -1497,6 +1542,12 @@ static inline int do_escape(
   unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
+  // FIXME
+  if (idx >= span->objects_per_span) {
+    // this is a bug
+    return -1;
+  }
+
   void *old_ptr = *loc;
   if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
     // same loc, optimize this
@@ -1504,8 +1555,29 @@ static inline int do_escape(
     return 0;
   }
 
+  // remove old records
+  if (old_ptr != nullptr) {
+    // will use gc
+    // clear_old_escape(old_ptr, (void *)loc);
+  }
+
   tc_globals.escape_final_cnt++;
-  span->GetEscapeTable()->Insert(loc, ptr, idx);
+  
+  // insert escape here
+  if (span->escape_list == nullptr) {
+    if (span->objects_per_span <= 2) {
+      span->escape_list = (struct escape **)alloc_escape();
+    } else {
+      span->escape_list = alloc_escape_list();
+    }
+  }
+
+  struct escape **escape_list = span->escape_list;
+  // store the loc into ptr's escapes
+  struct escape *loc_e = alloc_escape();
+  loc_e->loc = (void *)loc;
+  loc_e->next = escape_list[idx];
+  escape_list[idx] = loc_e;
   return 0;
 }
 

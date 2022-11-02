@@ -33,48 +33,28 @@ GOOGLE_MALLOC_SECTION_BEGIN
 namespace tcmalloc {
 namespace tcmalloc_internal {
 
-struct escape** EscapeTable::alloc_escape_list() {
-  struct escape **list = reinterpret_cast<struct escape **>(Static::escape_list_allocator().New());
-  memset(list, 0, 1024*sizeof(struct escape *));
-  return list;
-}
-
-void EscapeTable::delete_escape_list(struct escape **list) {
-  Static::escape_list_allocator().Delete(reinterpret_cast<EscapeList*>(list));
-}
-
-struct escape* EscapeTable::alloc_escape() {
-#ifdef PROTECTION_DEBUG
-  Log(kLog, __FILE__, __LINE__, "alloc escape");
-#endif
-  struct escape *e = reinterpret_cast<struct escape *>(Static::escape_allocator().New());
-  return e;
-}
-
-void EscapeTable::delete_escape(struct escape *e) {
-#ifdef PROTECTION_DEBUG
-  Log(kLog, __FILE__, __LINE__, "delete escape");
-#endif
-  Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
-}
-
-void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
-  const PageId p = PageIdContaining(ptr);
-  Span *span = tc_globals.pagemap().GetDescriptor(p);
-  if (span && span->obj_size > 0) {
-    EscapeTable* table = span->GetEscapeTable();
-
-    unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
-    // printf("idx %u ptr %p span start addr %p size %lx\n", idx, ptr, span->start_address(), span->obj_size);
-
-    // FIXME: than span start maybe outdated
-    // if ((size_t)ptr < (size_t)span->start_address())
-    if (idx >= 1024)
-      return;
-
-    table->remove(idx, loc);
+void Span::DestroyEscape() {
+  if (escape_list == nullptr)
+    return;
+  
+  for (int i=0; i<objects_per_span; i++) {
+    if (escape_list[i]) {
+      // Log(kLog, __FILE__, __LINE__, "Escape leak detected");
+      struct escape* cur = escape_list[i];
+      while (cur) {
+        struct escape *next = cur->next;
+        Static::escape_allocator().Delete((EscapeChunk*)(cur));
+        cur = next;
+      }
+    }
   }
-  return;
+
+  if (objects_per_span > 2) {
+    Static::escape_list_allocator().Delete((EscapeList*)(escape_list));
+  } else {
+    Static::escape_allocator().Delete((EscapeChunk*)(escape_list));
+  }
+  escape_list = nullptr;
 }
 
 void Span::Sample(SampledAllocation* sampled_allocation) {

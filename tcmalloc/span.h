@@ -96,106 +96,6 @@ class EscapeList {
   struct escape *list[1024];
 };
 
-class EscapeTable {
-  // TODO: we need a lock here
-  // absl::base_internal::SpinLock freelist_lock;
-
-  struct escape **escape_list = nullptr;
-
-  inline void remove(unsigned idx, void *loc) {
-    struct escape *pre, *cur;
-    if (escape_list == nullptr)
-      return;
-    for (pre=nullptr, cur=escape_list[idx]; cur; cur = cur->next) {
-      if (cur->loc == loc) {
-        if (pre) {
-          pre->next = cur->next;
-        } else {
-          escape_list[idx] = cur->next;
-        }
-        delete_escape(cur);
-        break;
-      }
-      pre = cur;
-    }
-  }
-  
-  void ClearOldEscape(void *ptr, void *loc);
- public:
-  void delete_escape(struct escape *e);
-  struct escape* alloc_escape();
-  void delete_escape_list(struct escape **list);
-  struct escape** alloc_escape_list();
-
-  inline void Destroy() {
-    // by the time of destroy, all the escapes should be removed
-    // otherwise, this is a memory leak.
-    if (escape_list == nullptr)
-      return;
-
-    for (int i=0; i<1024; i++) {
-      if (escape_list[i]) {
-        // Log(kLog, __FILE__, __LINE__, "Escape leak detected");
-        struct escape* cur = escape_list[i];
-        while (cur) {
-          struct escape *next = cur->next;
-          delete_escape(cur);
-          cur = next;
-        }
-      }
-    }
-
-    delete_escape_list(escape_list);
-    escape_list = nullptr;
-  }
-
-  inline void Free(int idx, void *ptr, void *end) {
-    // free allocated_note
-#ifdef PROTECTION_DEBUG
-    Log(kLog, __FILE__, __LINE__, "Freeing ptr ", ptr);
-#endif
-    if (escape_list == nullptr)
-      return;
-
-    struct escape* cur = escape_list[idx];
-    while (cur) {
-      struct escape *next = cur->next;
-      void* cur_addr = *(reinterpret_cast<void**>(cur->loc));
-      if (ptr <= cur_addr && cur_addr < end) {
-#ifdef PROTECTION_DEBUG
-        Log(kLog, __FILE__, __LINE__, "poison", cur->addr, "content", *(reinterpret_cast<void**>(cur->addr)));
-#endif
-        // *(reinterpret_cast<size_t*>(cur->loc)) |= (size_t) 0xdeadbeef00000000;
-      }
-      delete_escape(cur);
-      cur = next;
-    }
-    escape_list[idx] = nullptr;
-  }
-
-  inline void Insert(void **loc, void *ptr, unsigned idx) {
-    struct escape *list;
-
-    // do not remove escape of old ptr
-    // this is heavy, let the free do the check
-    ClearOldEscape(*loc, (void *)loc);
-
-    // FIXME: this check will be triggered on perl
-    // CHECK_CONDITION(idx < 1024);
-    if (idx >= 1024)
-      return;
-
-    if (escape_list == nullptr)
-      escape_list = alloc_escape_list();
-
-    // store the loc into ptr's escapes
-    struct escape *loc_e = alloc_escape();
-    loc_e->loc = reinterpret_cast<void*>(loc);
-    loc_e->next = escape_list[idx];
-    escape_list[idx] = loc_e;
-  }
-};
-
 class Span : public SpanList::Elem {
  public:
   // Allocator/deallocator for spans. Note that these functions are defined
@@ -203,6 +103,8 @@ class Span : public SpanList::Elem {
   static Span* New(PageId p, Length len)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(pageheap_lock);
   static void Delete(Span* span);
+
+  void DestroyEscape();
 
   // locations used to track what list a span resides on.
   enum Location {
@@ -350,13 +252,11 @@ class Span : public SpanList::Elem {
   // Prefetch cacheline containing most important span information.
   void Prefetch();
 
-  EscapeTable* GetEscapeTable() { return &escape_table; }
-  // Length GetObjSize() { return obj_size; }
-
-  static constexpr size_t kCacheSize = 4;
+  struct escape **escape_list = nullptr;
   uint32_t obj_size;
   uint32_t objects_per_span;
 
+  static constexpr size_t kCacheSize = 4;
  private:
   // See the comment on freelist organization in cc file.
   typedef uint16_t ObjIdx;
@@ -410,8 +310,6 @@ class Span : public SpanList::Elem {
 
   PageId first_page_;  // Starting page number.
   Length num_pages_;   // Number of pages in span.
-
-  EscapeTable escape_table; // the escape table for objects in this span
 
   // Convert object pointer <-> freelist index.
   ObjIdx PtrToIdx(void* ptr, size_t size) const;
@@ -719,7 +617,7 @@ inline void Span::Prefetch() {
   // The Span can occupy two cache lines, so prefetch the cacheline with the
   // most frequently accessed parts of the Span.
   static_assert(sizeof(Span) == 64, "Update span prefetch offset");
-  __builtin_prefetch(&this->allocated_, 0, 3);
+  __builtin_prefetch(&this->escape_list, 1, 3);
 #endif
 #endif
 }

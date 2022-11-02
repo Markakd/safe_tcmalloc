@@ -264,9 +264,6 @@ inline Span* Span::New(PageId p, Length len) {
 }
 
 inline void Span::Delete(Span* span) {
-  // the function acquires pageheap_lock
-  // be careful of deadlock here
-  span->escape_table.Destroy();
 #ifndef NDEBUG
   // In debug mode, trash the contents of deleted Spans
   memset(static_cast<void*>(span), 0x3f, sizeof(*span));
