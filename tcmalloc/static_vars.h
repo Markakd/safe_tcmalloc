@@ -54,6 +54,11 @@ class CpuCache;
 class PageMap;
 class ThreadCache;
 
+struct escape_cache {
+  void **loc; void *ptr; // void *old_ptr;
+};
+#define CACHE_SIZE 1024
+
 using SampledAllocationRecorder =
     ::tcmalloc::tcmalloc_internal::SampleRecorder<SampledAllocation,
                                                   SampledAllocationAllocator>;
@@ -183,11 +188,15 @@ class Static final {
   static size_t escape_valid_cnt;
   static size_t escape_heap_cnt;
   static size_t escape_loc_optimized;
+  static size_t escape_cache_optimized;
   static size_t escape_final_cnt;
   static size_t get_end_cnt;
   static size_t gep_check_cnt;
   static size_t bc_check_cnt;
 #endif
+  static uint32_t escape_pos;
+  static uint32_t padding;
+  static struct escape_cache escape_caches[CACHE_SIZE];
 
  private:
 #if defined(__clang__)

@@ -1522,6 +1522,26 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
   return chunk_start;
 }
 
+static inline void commit_escape(Span *span, void **loc,
+    void *ptr, unsigned idx) {
+  // insert escape here
+  if (span->escape_list == nullptr) {
+    if (span->objects_per_span <= 2) {
+      span->escape_list = (struct escape **)alloc_escape();
+      memset(span->escape_list, 0, 16);
+    } else {
+      span->escape_list = alloc_escape_list();
+    }
+  }
+
+  struct escape **escape_list = span->escape_list;
+  // store the loc into ptr's escapes
+  struct escape *loc_e = alloc_escape();
+  loc_e->loc = (void *)loc;
+  loc_e->next = escape_list[idx];
+  escape_list[idx] = loc_e;
+}
+
 static inline int do_escape(
     void **loc, void* ptr) noexcept {
   // store pointer new into loc
@@ -1577,28 +1597,33 @@ static inline int do_escape(
     return -1;
   }
 
-  // remove old records
-  if (old_ptr != nullptr) {
-    // will use gc
-    clear_old_escape(old_ptr, (void *)loc);
-  }
-
-  // insert escape here
-  if (span->escape_list == nullptr) {
-    if (span->objects_per_span <= 2) {
-      span->escape_list = (struct escape **)alloc_escape();
-      memset(span->escape_list, 0, 16);
-    } else {
-      span->escape_list = alloc_escape_list();
+  if (tc_globals.escape_pos == CACHE_SIZE) {
+    // do commit
+    for (int i=0; i<CACHE_SIZE; i++) {
+      ptr = tc_globals.escape_caches[i].ptr;
+      loc = tc_globals.escape_caches[i].loc;
+      if (*loc == ptr) {
+        span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
+        if (!span || !span->obj_size)
+          continue;
+        
+        obj_size = span->obj_size;
+        idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+        if (idx >= 1024)
+          continue;
+        commit_escape(span, loc, ptr, idx);
+      } else {
+        // removing old records is heavy
+        // we leave it for free to do it
+        tc_globals.escape_cache_optimized++;
+      }
     }
+    tc_globals.escape_pos = 0;
   }
 
-  struct escape **escape_list = span->escape_list;
-  // store the loc into ptr's escapes
-  struct escape *loc_e = alloc_escape();
-  loc_e->loc = (void *)loc;
-  loc_e->next = escape_list[idx];
-  escape_list[idx] = loc_e;
+  tc_globals.escape_caches[tc_globals.escape_pos].loc = loc;
+  // tc_globals.escape_caches[tc_globals.escape_pos].old_ptr = *loc;
+  tc_globals.escape_caches[tc_globals.escape_pos++].ptr = ptr;
   return 0;
 }
 
@@ -1650,6 +1675,7 @@ static inline void do_report_statistic() {
   fprintf(stderr, "escape heap count\t: %ld\n", tc_globals.escape_heap_cnt);
   fprintf(stderr, "escape optimized count\t: %ld\n", tc_globals.escape_loc_optimized);
   fprintf(stderr, "escape final count\t: %ld\n", tc_globals.escape_final_cnt);
+  fprintf(stderr, "escape cache optimized\t: %ld\n", tc_globals.escape_cache_optimized);
   fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
