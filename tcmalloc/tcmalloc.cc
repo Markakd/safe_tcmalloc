@@ -889,6 +889,32 @@ static inline void poison_escapes(Span *span, int idx,
   escape_list[idx] = nullptr;
 }
 
+static inline void clear_old_escape(void *ptr, void *loc) {
+  Span *span = tc_globals.pagemap().GetExistingDescriptor(PageIdContaining(ptr));
+  if (span != nullptr) {
+    span->Prefetch();
+    unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
+    CHECK_CONDITION(idx < span->objects_per_span);
+    if (!span->escape_list || !span->escape_list[idx])
+      return;
+
+    struct escape *cur, *pre;
+    for (pre=nullptr, cur=span->escape_list[idx]; cur; cur = cur->next) {
+      if (cur->loc == loc) {
+        if (pre) {
+          pre->next = cur->next;
+        } else {
+          span->escape_list[idx] = cur->next;
+        }
+        delete_escape(cur);
+        break;
+      }
+      pre = cur;
+    }
+
+  }
+}
+
 template <typename Policy, typename CapacityPtr = std::nullptr_t>
 inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
                              CapacityPtr capacity = nullptr) {
@@ -1519,11 +1545,10 @@ static inline int do_escape(
   //   size_t objects_per_span = span_size / allocated_size;
   //   printf("[%ld] alloc size %ld object per span %ld\n", size_class, allocated_size, objects_per_span);
   // }
-  return 1;
 
   // this is cheap but optimizes a lot for perl
   Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
-  if (!loc_span) {
+  if (ABSL_PREDICT_TRUE(!loc_span)) {
     return -1;
   }
   tc_globals.escape_heap_cnt++;
@@ -1532,6 +1557,7 @@ static inline int do_escape(
   if (!span) {
     return -1;
   }
+  span->Prefetch();
   tc_globals.escape_valid_cnt++;
 
   // FIXME: obj_size shouldn't be 0
@@ -1542,12 +1568,6 @@ static inline int do_escape(
   unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
-  // FIXME
-  if (idx >= span->objects_per_span) {
-    // this is a bug
-    return -1;
-  }
-
   void *old_ptr = *loc;
   if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
     // same loc, optimize this
@@ -1555,13 +1575,21 @@ static inline int do_escape(
     return 0;
   }
 
+  tc_globals.escape_final_cnt++;
+
+  // FIXME
+  CHECK_CONDITION(idx < span->objects_per_span);
+  // if (idx >= span->objects_per_span) {
+  //   // this is a bug
+  //   return -1;
+  // }
+
   // remove old records
   if (old_ptr != nullptr) {
     // will use gc
-    // clear_old_escape(old_ptr, (void *)loc);
+    clear_old_escape(old_ptr, (void *)loc);
   }
 
-  tc_globals.escape_final_cnt++;
   
   // insert escape here
   if (span->escape_list == nullptr) {
