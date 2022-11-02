@@ -464,6 +464,7 @@ void HugePageAwareAllocator::Delete(Span* span, size_t objects_per_span) {
   for (; p <= span->last_page(); ++p) {
     tc_globals.pagemap().Set(p, nullptr);
   }
+  p = span->first_page();
 
   span->DestroyEscape();
   Span::Delete(span);
