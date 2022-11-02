@@ -728,7 +728,11 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
       for (Length i=Length(0); i<num_pages; ++i) {
         tc_globals.pagemap().Set(p+i, span);
       }
-      // tc_globals.pagemap().Set(p, span);
+
+      size_t span_size =
+        Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
+      span->obj_size = allocated_size;
+      span->objects_per_span = span_size / allocated_size;
       // If we report capacity back from a size returning allocation, we can not
       // report the allocated_size, as we guard the size to 'requested_size',
       // and we maintain the invariant that GetAllocatedSize() must match the
@@ -800,6 +804,7 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
   // can access it. It is visible after we return from this allocation path.
   span->Sample(sampled_allocation);
   span->obj_size = allocated_size;
+  span->objects_per_span = span->bytes_in_span() / allocated_size;
 
   // if we register the size class here, tcmalloc crashes
   // if (size_class != 0)
@@ -890,14 +895,20 @@ static inline void poison_escapes(Span *span, int idx,
 }
 
 static inline void clear_old_escape(void *ptr, void *loc) {
-  Span *span = tc_globals.pagemap().GetExistingDescriptor(PageIdContaining(ptr));
+  Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
   if (span != nullptr) {
     span->Prefetch();
+
+    // It is possible that ptr points to a span in the freelist
+    // for page_heap maintained span, span in the freelist still has
+    // page table entries, but the escape_list should be null
+    if (!span->escape_list)
+      return;
+    CHECK_CONDITION(span->obj_size > 0);
     unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
     CHECK_CONDITION(idx < span->objects_per_span);
-    if (!span->escape_list || !span->escape_list[idx])
+    if (!span->escape_list[idx])
       return;
-
     struct escape *cur, *pre;
     for (pre=nullptr, cur=span->escape_list[idx]; cur; cur = cur->next) {
       if (cur->loc == loc) {
@@ -911,7 +922,6 @@ static inline void clear_old_escape(void *ptr, void *loc) {
       }
       pre = cur;
     }
-
   }
 }
 
@@ -948,27 +958,8 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
                                                   nullptr, span, capacity));
   }
 
-  const PageId p = PageIdContaining(result);
-  Span* span_ = tc_globals.pagemap().GetExistingDescriptor(p);
-  size_t obj_size, span_size;
-  size_t size_class = tc_globals.pagemap().sizeclass(p);
-  if (size_class != 0) {
-    obj_size = tc_globals.sizemap().class_to_size(size_class);
-    span_size = Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
-  } else {
-    if (span_->sampled()) {
-      if (tc_globals.guardedpage_allocator().PointerIsMine(result)) {
-        obj_size = tc_globals.guardedpage_allocator().GetRequestedSize(result);
-      }
-      obj_size = span_->sampled_allocation()->sampled_stack.allocated_size;
-    } else {
-      obj_size = span_->bytes_in_span();
-    }
-    span_size = span_->bytes_in_span();
-    CHECK_CONDITION(span_size == obj_size);
-  }
-  span_->obj_size = (uint32_t)obj_size;
-  span_->objects_per_span = (uint32_t)(span_size/obj_size);
+  span->objects_per_span = (uint32_t)num_objects;
+  span->obj_size = (uint32_t)size;
   return result;
 }
 
@@ -1548,7 +1539,7 @@ static inline int do_escape(
 
   // this is cheap but optimizes a lot for perl
   Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
-  if (ABSL_PREDICT_TRUE(!loc_span)) {
+  if (!loc_span) {
     return -1;
   }
   tc_globals.escape_heap_cnt++;
@@ -1562,8 +1553,10 @@ static inline int do_escape(
 
   // FIXME: obj_size shouldn't be 0
   size_t obj_size = span->obj_size;
-  if (obj_size == 0)
+  if (ABSL_PREDICT_FALSE(obj_size == 0)) {
+    printf("span %p obj size is 0\n", span);
     return -1;
+  }
 
   unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
@@ -1578,11 +1571,12 @@ static inline int do_escape(
   tc_globals.escape_final_cnt++;
 
   // FIXME
-  CHECK_CONDITION(idx < span->objects_per_span);
-  // if (idx >= span->objects_per_span) {
-  //   // this is a bug
-  //   return -1;
-  // }
+  // CHECK_CONDITION(idx < span->objects_per_span);
+  if (ABSL_PREDICT_FALSE(idx >= span->objects_per_span)) {
+    // this is a bug
+    printf("span %p obj_per_span %d idx %d, ptr %p start addr %p span size %lx obj size %x\n", span, span->objects_per_span, idx, ptr, span->start_address(), span->bytes_in_span(), span->obj_size);
+    return -1;
+  }
 
   // remove old records
   if (old_ptr != nullptr) {
@@ -1590,7 +1584,6 @@ static inline int do_escape(
     clear_old_escape(old_ptr, (void *)loc);
   }
 
-  
   // insert escape here
   if (span->escape_list == nullptr) {
     if (span->objects_per_span <= 2) {
