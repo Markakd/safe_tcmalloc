@@ -282,6 +282,7 @@ void PageHeap::Delete(Span* span, size_t objects_per_span) {
 
   // destroy escape list of the span
   span->DestroyEscape();
+  span->obj_size = span->objects_per_span = 0;
   MergeIntoFreeList(span);  // Coalesces if possible
   ASSERT(Check());
 }
