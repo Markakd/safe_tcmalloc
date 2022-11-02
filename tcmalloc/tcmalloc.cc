@@ -1463,7 +1463,7 @@ static inline int do_escape(
   if (obj_size == 0)
     return -1;
 
-  int idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+  unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
 
   void *old_ptr = *loc;
@@ -1474,7 +1474,35 @@ static inline int do_escape(
   }
 
   tc_globals.escape_final_cnt++;
-  span->GetEscapeTable()->Insert(loc, ptr, (void*)obj_start, idx, obj_size);
+
+  if (tc_globals.escape_cnt == CACHE_SIZE) {
+    // commit
+    for (int i=0; i<CACHE_SIZE; i++) {
+      ptr = tc_globals.escape_caches[i].ptr;
+      loc = tc_globals.escape_caches[i].loc;
+      if (*loc == ptr) {
+        // do commit
+        span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
+        if (!span || !span->obj_size)
+          continue;
+        obj_size = span->obj_size;
+        idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+        if (idx >= 1024)
+          continue;
+        obj_start = (size_t)span->start_address() + obj_size * idx;
+        span->GetEscapeTable()->Insert(loc, ptr, (void*)obj_start, idx, obj_size, span->bytes_in_span()/obj_size);
+      } else {
+        tc_globals.gep_check_cnt++;
+      }
+    }
+    tc_globals.escape_cnt = 0;
+  }
+
+  tc_globals.escape_caches[tc_globals.escape_cnt].loc = loc;
+  // tc_globals.escape_caches[tc_globals.escape_cnt].old_ptr = *loc;
+  tc_globals.escape_caches[tc_globals.escape_cnt++].ptr = ptr;
+
+  // span->GetEscapeTable()->Insert(loc, ptr, (void*)obj_start, idx, obj_size);
   return 0;
 }
 
@@ -1527,7 +1555,7 @@ static inline void do_report_statistic() {
   fprintf(stderr, "escape optimized count\t: %ld\n", tc_globals.escape_loc_optimized);
   fprintf(stderr, "escape final count\t: %ld\n", tc_globals.escape_final_cnt);
   fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
-  fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
+  fprintf(stderr, "gep check count\t\t: %ld\n", tc_globals.gep_check_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
 #endif
 }
@@ -1954,7 +1982,7 @@ extern "C" ABSL_CACHELINE_ALIGNED size_t TCGetChunkRange(void* base, size_t* sta
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalEscape(
     void** loc, void* ptr) noexcept {
 #ifdef ENABLE_STATISTIC
-  tc_globals.escape_cnt++;
+  // tc_globals.escape_cnt++;
 #endif
 #ifdef ENABLE_PROTECTION
   return do_escape(loc, ptr);

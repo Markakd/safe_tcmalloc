@@ -87,6 +87,7 @@ size_t Static::get_end_cnt;
 size_t Static::gep_check_cnt;
 size_t Static::bc_check_cnt;
 #endif
+struct escape_cache Static::escape_caches[CACHE_SIZE];
 
 size_t Static::metadata_bytes() {
   // This is ugly and doesn't nicely account for e.g. alignment losses
@@ -110,6 +111,7 @@ size_t Static::metadata_bytes() {
 #ifdef ENABLE_STATISTIC
       sizeof(size_t) * 10 +
 #endif
+      sizeof(struct escape_cache) * CACHE_SIZE +
       sizeof(numa_topology_) + sizeof(escape_allocator_) +
       sizeof(escape_list_allocator_);
   // LINT.ThenChange(:static_vars)

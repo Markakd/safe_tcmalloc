@@ -158,7 +158,7 @@ class EscapeTable {
       return;
     
     if (escape_cnts[idx] > 1000) {
-      printf("freeing ptr %p, idx %d with %ld refs\n", ptr, idx, escape_cnts[idx]);
+      // printf("freeing ptr %p, idx %d with %ld refs\n", ptr, idx, escape_cnts[idx]);
     }
 
     struct escape* cur = escape_list[idx];
@@ -177,12 +177,12 @@ class EscapeTable {
     escape_list[idx] = nullptr;
   }
 
-  inline void Insert(void **loc, void *ptr, void *obj_start, int idx, size_t obj_size, size_t objs) {
+  inline void Insert(void **loc, void *ptr, void *obj_start, unsigned idx, size_t obj_size, size_t objs) {
     struct escape *list;
 
     // do not remove escape of old ptr
     // this is heavy, let the free do the check
-    ClearOldEscape(*loc, (void *)loc);
+    // ClearOldEscape(*loc, (void *)loc);
 
     // CHECK_CONDITION(idx < 1024);
     if (idx >= 1024) {
@@ -202,7 +202,7 @@ class EscapeTable {
     escape_cnts[idx]++;
 
     if (escape_cnts[idx] > 1000) {
-      printf("ptr %p, loc %p obj_start %p size %ld objs_per_span %d idx %d has refs %ld\n", ptr, loc, obj_start, obj_size, objs, idx, escape_cnts[idx]);
+      printf("ptr %p, loc %p obj_start %p size %ld objs_per_span %ld idx %d has refs %ld\n", ptr, loc, obj_start, obj_size, objs, idx, escape_cnts[idx]);
     }
   }
 };
