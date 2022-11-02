@@ -72,8 +72,8 @@ void EscapeTable::ClearOldEscape(void *ptr, void *loc) {
     if (idx >= 1024)
       return;
     if (table->escape_list != nullptr) {
-      if (table->escape_cnts[idx] > 100)
-        printf("ptr %p idx %d has %ld refs\n", ptr, idx, table->escape_cnts[idx]);
+      // if (table->escape_cnts[idx] > 100)
+      //   printf("ptr %p idx %d has %ld refs\n", ptr, idx, table->escape_cnts[idx]);
       table->remove(idx, loc);
     }
   }
