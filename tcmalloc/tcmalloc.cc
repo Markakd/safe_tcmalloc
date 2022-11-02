@@ -958,7 +958,7 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
   }
 
   span->objects_per_span = (uint32_t)num_objects;
-  span->obj_size = (uint32_t)size;
+  span->obj_size = (uint32_t)GetSize(result);
   return result;
 }
 
