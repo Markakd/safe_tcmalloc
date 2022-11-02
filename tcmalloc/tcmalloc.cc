@@ -902,9 +902,8 @@ static inline void clear_old_escape(void *ptr, void *loc) {
     // It is possible that ptr points to a span in the freelist
     // for page_heap maintained span, span in the freelist still has
     // page table entries, but the escape_list should be null
-    if (!span->escape_list)
+    if (!span->escape_list || !span->obj_size)
       return;
-    CHECK_CONDITION(span->obj_size > 0);
     unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
     CHECK_CONDITION(idx < span->objects_per_span);
     if (!span->escape_list[idx])
