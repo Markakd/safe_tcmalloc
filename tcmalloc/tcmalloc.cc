@@ -1587,6 +1587,7 @@ static inline int do_escape(
   if (span->escape_list == nullptr) {
     if (span->objects_per_span <= 2) {
       span->escape_list = (struct escape **)alloc_escape();
+      memset(span->escape_list, 0, 16);
     } else {
       span->escape_list = alloc_escape_list();
     }
