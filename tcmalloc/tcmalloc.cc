@@ -1377,6 +1377,93 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // TCMALLOC_HAVE_STRUCT_MALLINFO
 
+static inline size_t do_get_chunk_end(void* base) noexcept {
+#ifdef ENABLE_STATISTIC
+  tc_globals.get_end_cnt++;
+#endif
+  const PageId p = PageIdContaining(base);
+  size_t start_addr, obj_size;
+  Span* span;
+
+  size_t page_info = tc_globals.pagemap().get_page_info(p);
+  size_t size_class = page_info & (CompactSizeClass)(-1);
+  if (size_class != 0) {
+    obj_size = tc_globals.sizemap().class_to_size(size_class);
+    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8))
+                     .start_addr();
+  } else {
+    span = tc_globals.pagemap().GetDescriptor(p);
+    if (!span) {
+      return 0;
+    }
+    obj_size = span->obj_size;
+    start_addr = (size_t)span->start_address();
+  }
+
+  size_t chunk_start =
+      (size_t)(start_addr) +
+      (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_end = chunk_start + obj_size;
+
+  return chunk_end;
+}
+
+static inline void* do_strcpy_check(void* _dst, void* _src) noexcept {
+  char* dst_end = (char*)do_get_chunk_end(_dst);
+  char* src_end = (char*)do_get_chunk_end(_src);
+
+  char* dst = (char*)_dst;
+  char* src = (char*)_src;
+
+  while (*src) {
+    if (src < src_end && dst < dst_end) {
+      *dst++ = *src++;
+    } else {
+#ifdef ENABLE_ERROR_REPORT
+      Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
+#ifdef CRASH_ON_CORRUPTION
+      abort();
+#endif
+    }
+  }
+
+  return _dst;
+}
+
+static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
+  char* dst_end = (char*)do_get_chunk_end(_dst);
+  char* src_end = (char*)do_get_chunk_end(_src);
+
+  char* dst = (char*)_dst;
+  char* src = (char*)_src;
+
+  while (*dst) {
+    if (dst < dst_end) dst++;
+#ifdef ENABLE_ERROR_REPORT
+    Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
+#ifdef CRASH_ON_CORRUPTION
+    abort();
+#endif
+  }
+
+  while (*src) {
+    if (src < src_end && dst < dst_end) {
+      *dst++ = *src++;
+    } else {
+#ifdef ENABLE_ERROR_REPORT
+    Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
+#ifdef CRASH_ON_CORRUPTION
+    abort();
+#endif
+    }
+  }
+
+  return _dst;
+}
+
 // If we consult the span then retrieve the obj_size and start address, it will
 // invoke 4 memory access: first find span from the map (2 accesses), then obj_size
 // and start address in the span. This is expensive because the span is not hot thus
@@ -1713,6 +1800,8 @@ using tcmalloc::tcmalloc_internal::do_escape;
 using tcmalloc::tcmalloc_internal::do_get_chunk_range;
 using tcmalloc::tcmalloc_internal::do_report_error;
 using tcmalloc::tcmalloc_internal::do_report_statistic;
+using tcmalloc::tcmalloc_internal::do_strcat_check;
+using tcmalloc::tcmalloc_internal::do_strcpy_check;
 
 #ifdef TCMALLOC_DEPRECATED_PERTHREAD
 using tcmalloc::tcmalloc_internal::ThreadCache;
@@ -2064,6 +2153,16 @@ extern "C" void* TCMallocInternalRealloc(void* old_ptr,
     return NULL;
   }
   return do_realloc(old_ptr, new_size);
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalStrcatCheck(
+    void* dst, void* src) noexcept {
+  return do_strcat_check(dst, src);
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalStrcpyCheck(
+    void* dst, void* src) noexcept {
+  return do_strcpy_check(dst, src);
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalGepCheckBoundary(

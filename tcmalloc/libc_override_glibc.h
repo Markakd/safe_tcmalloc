@@ -69,6 +69,10 @@ void* __libc_pvalloc(size_t size) noexcept
 int __posix_memalign(void** r, size_t a, size_t s) noexcept
     TCMALLOC_ALIAS(TCMallocInternalPosixMemalign);
 
+void *__strcat_check(void *dst, void *src) noexcept
+    TCMALLOC_ALIAS(TCMallocInternalStrcatCheck);
+void *__strcpy_check(void *dst, void *src) noexcept
+    TCMALLOC_ALIAS(TCMallocInternalStrcpyCheck);
 int __gep_check_boundary(void *base, void* ptr, size_t size) noexcept
     TCMALLOC_ALIAS(TCMallocInternalGepCheckBoundary);
 int __bc_check_boundary(void *base, size_t size) noexcept
