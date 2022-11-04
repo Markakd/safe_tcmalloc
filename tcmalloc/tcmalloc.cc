@@ -1394,7 +1394,7 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
-      return 0;
+      return 0x1000000000000;
     }
     obj_size = span->obj_size;
     start_addr = (size_t)span->start_address();
@@ -1428,6 +1428,7 @@ static inline void* do_strcpy_check(void* _dst, void* _src) noexcept {
     }
   }
 
+  *dst = 0;
   return _dst;
 }
 
@@ -1440,12 +1441,14 @@ static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
 
   while (*dst) {
     if (dst < dst_end) dst++;
+    else {
 #ifdef ENABLE_ERROR_REPORT
-    Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+      Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
-    abort();
+      abort();
 #endif
+    }
   }
 
   while (*src) {
@@ -1461,6 +1464,7 @@ static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
     }
   }
 
+  *dst = 0;
   return _dst;
 }
 
