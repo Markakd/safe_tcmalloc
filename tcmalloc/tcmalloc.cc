@@ -1652,15 +1652,17 @@ static inline int do_escape(
   if (!loc_span) {
     return -1;
   }
+#ifdef ENABLE_STATISTIC
   tc_globals.escape_heap_cnt++;
-
+#endif
   Span* span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
   if (!span) {
     return -1;
   }
   span->Prefetch();
+#ifdef ENABLE_STATISTIC
   tc_globals.escape_valid_cnt++;
-
+#endif
   // FIXME: obj_size shouldn't be 0
   size_t obj_size = span->obj_size;
   if (ABSL_PREDICT_FALSE(obj_size == 0)) {
@@ -1674,11 +1676,14 @@ static inline int do_escape(
   void *old_ptr = *loc;
   if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
     // same loc, optimize this
+#ifdef ENABLE_STATISTIC
     tc_globals.escape_loc_optimized++;
+#endif
     return 0;
   }
-
+#ifdef ENABLE_STATISTIC
   tc_globals.escape_final_cnt++;
+#endif
 
   // FIXME
   // CHECK_CONDITION(idx < span->objects_per_span);
@@ -1706,7 +1711,9 @@ static inline int do_escape(
       } else {
         // removing old records is heavy
         // we leave it for free to do it
+#ifdef ENABLE_STATISTIC
         tc_globals.escape_cache_optimized++;
+#endif
       }
     }
     tc_globals.escape_pos = 0;
