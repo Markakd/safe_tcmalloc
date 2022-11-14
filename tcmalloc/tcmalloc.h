@@ -37,7 +37,13 @@ extern "C" {
 void* TCMallocInternalStrcatCheck(void* dst, void* src) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
+void* TCMallocInternalStrncatCheck(void* dst, void* src, size_t maxlen) noexcept
+    ABSL_ATTRIBUTE_SECTION(google_malloc);
+
 void* TCMallocInternalStrcpyCheck(void* dst, void* src) noexcept
+    ABSL_ATTRIBUTE_SECTION(google_malloc);
+
+void* TCMallocInternalStrncpyCheck(void* dst, void* src, size_t maxlen) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
 int TCMallocInternalGepCheckBoundary(void *base, void* ptr, size_t size) noexcept

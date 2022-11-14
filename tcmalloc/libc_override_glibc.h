@@ -71,6 +71,8 @@ int __posix_memalign(void** r, size_t a, size_t s) noexcept
 
 void *__strcat_check(void *dst, void *src) noexcept
     TCMALLOC_ALIAS(TCMallocInternalStrcatCheck);
+void *__strncat_check(void *dst, void *src, size_t maxlen) noexcept
+    TCMALLOC_ALIAS(TCMallocInternalStrncatCheck);
 void *__strcpy_check(void *dst, void *src) noexcept
     TCMALLOC_ALIAS(TCMallocInternalStrcpyCheck);
 void *__strncpy_check(void *dst, void *src, size_t maxlen) noexcept
