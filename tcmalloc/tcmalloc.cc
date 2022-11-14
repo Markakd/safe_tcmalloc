@@ -1140,6 +1140,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
       Log(kLogWithStack, __FILE__, __LINE__,
           "double/invalid free detected");
 #ifdef CRASH_ON_CORRUPTION
+      fflush(stdout);
       abort();
 #endif
       return;
@@ -1156,6 +1157,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
         "freeing a pointer with no span", ptr);
     }
 #ifdef CRASH_ON_CORRUPTION
+    fflush(stdout);
     abort();
 #endif
     return;
@@ -1220,6 +1222,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
       Log(kLogWithStack, __FILE__, __LINE__,
           "double/invalid free detected");
 #ifdef CRASH_ON_CORRUPTION
+      fflush(stdout);
       abort();
 #endif
       return;
@@ -1236,6 +1239,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
         "freeing a pointer with no span", ptr);
     }
 #ifdef CRASH_ON_CORRUPTION
+    fflush(stdout);
     abort();
 #endif
     return;
@@ -1424,6 +1428,7 @@ static inline void* do_strncpy_check(void* _dst, void* _src, size_t maxlen) noex
       Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+      fflush(stdout);
       abort();
 #endif
     }
@@ -1448,6 +1453,7 @@ static inline void* do_strcpy_check(void* _dst, void* _src) noexcept {
       Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+      fflush(stdout);
       abort();
 #endif
     }
@@ -1472,6 +1478,7 @@ static inline void* do_strncat_check(void* _dst, void* _src, size_t maxlen) noex
       Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+      fflush(stdout);
       abort();
 #endif
     }
@@ -1485,6 +1492,7 @@ static inline void* do_strncat_check(void* _dst, void* _src, size_t maxlen) noex
     Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+    fflush(stdout);
     abort();
 #endif
     }
@@ -1508,6 +1516,7 @@ static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
       Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+      fflush(stdout);
       abort();
 #endif
     }
@@ -1521,6 +1530,7 @@ static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
     Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+    fflush(stdout);
     abort();
 #endif
     }
@@ -1589,6 +1599,7 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
   Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+  fflush(stdout);
   abort();
 #endif
 
@@ -1645,6 +1656,7 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
   Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+  fflush(stdout);
   abort();
 #endif
 
@@ -1792,6 +1804,7 @@ static inline void do_report_error() noexcept {
   Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
 #endif
 #ifdef CRASH_ON_CORRUPTION
+  fflush(stdout);
   abort();
 #endif
 }
