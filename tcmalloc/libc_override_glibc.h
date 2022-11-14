@@ -73,6 +73,8 @@ void *__strcat_check(void *dst, void *src) noexcept
     TCMALLOC_ALIAS(TCMallocInternalStrcatCheck);
 void *__strcpy_check(void *dst, void *src) noexcept
     TCMALLOC_ALIAS(TCMallocInternalStrcpyCheck);
+void *__strncpy_check(void *dst, void *src, size_t maxlen) noexcept
+    TCMALLOC_ALIAS(TCMallocInternalStrncpyCheck);
 int __gep_check_boundary(void *base, void* ptr, size_t size) noexcept
     TCMALLOC_ALIAS(TCMallocInternalGepCheckBoundary);
 int __bc_check_boundary(void *base, size_t size) noexcept

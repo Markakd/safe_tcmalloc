@@ -1408,6 +1408,31 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
   return chunk_end;
 }
 
+static inline void* do_strncpy_check(void* _dst, void* _src, size_t maxlen) noexcept {
+  char* dst_end = (char*)do_get_chunk_end(_dst);
+  char* src_end = (char*)do_get_chunk_end(_src);
+
+  char* dst = (char*)_dst;
+  char* src = (char*)_src;
+  int i = 0;
+
+  while (*src && i++ < maxlen) {
+    if (src < src_end && dst < dst_end) {
+      *dst++ = *src++;
+    } else {
+#ifdef ENABLE_ERROR_REPORT
+      Log(kLogWithStack, __FILE__, __LINE__, "OOB detected");
+#endif
+#ifdef CRASH_ON_CORRUPTION
+      abort();
+#endif
+    }
+  }
+
+  *dst = 0;
+  return _dst;
+}
+
 static inline void* do_strcpy_check(void* _dst, void* _src) noexcept {
   char* dst_end = (char*)do_get_chunk_end(_dst);
   char* src_end = (char*)do_get_chunk_end(_src);
@@ -1813,6 +1838,7 @@ using tcmalloc::tcmalloc_internal::do_report_error;
 using tcmalloc::tcmalloc_internal::do_report_statistic;
 using tcmalloc::tcmalloc_internal::do_strcat_check;
 using tcmalloc::tcmalloc_internal::do_strcpy_check;
+using tcmalloc::tcmalloc_internal::do_strncpy_check;
 
 #ifdef TCMALLOC_DEPRECATED_PERTHREAD
 using tcmalloc::tcmalloc_internal::ThreadCache;
@@ -2174,6 +2200,11 @@ extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalStrcatCheck(
 extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalStrcpyCheck(
     void* dst, void* src) noexcept {
   return do_strcpy_check(dst, src);
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void* TCMallocInternalStrncpyCheck(
+    void* dst, void* src, size_t maxlen) noexcept {
+  return do_strncpy_check(dst, src, maxlen);
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalGepCheckBoundary(
