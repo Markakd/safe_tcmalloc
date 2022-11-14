@@ -32,10 +32,10 @@ void PageMap::RegisterSizeClass(Span* span, size_t sc) {
   for (PageId p = first; p <= last; ++p) {
     map_.set_with_sizeclass(p.index(), span, sc);
   }
-  span->obj_size = tc_globals.sizemap().class_to_size(sc);
+  span->obj_size = tc_globals.sizemap().class_to_size(sc) / 8;
   size_t span_size =
           Length(tc_globals.sizemap().class_to_pages(sc)).in_bytes();
-  span->objects_per_span = span_size/span->obj_size;
+  span->objects_per_span = span_size/(span->obj_size*8ULL);
 }
 
 void PageMap::UnregisterSizeClass(Span* span) {

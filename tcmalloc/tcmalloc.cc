@@ -731,7 +731,7 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
 
       size_t span_size =
         Length(tc_globals.sizemap().class_to_pages(size_class)).in_bytes();
-      span->obj_size = allocated_size;
+      span->obj_size = allocated_size / 8;
       span->objects_per_span = span_size / allocated_size;
       // If we report capacity back from a size returning allocation, we can not
       // report the allocated_size, as we guard the size to 'requested_size',
@@ -803,7 +803,7 @@ static void* SampleifyAllocation(Policy policy, size_t requested_size,
   // No pageheap_lock required. The span is freshly allocated and no one else
   // can access it. It is visible after we return from this allocation path.
   span->Sample(sampled_allocation);
-  span->obj_size = allocated_size;
+  span->obj_size = allocated_size / 8;
   span->objects_per_span = span->bytes_in_span() / allocated_size;
 
   // if we register the size class here, tcmalloc crashes
@@ -904,7 +904,7 @@ static inline void clear_old_escape(void *ptr, void *loc) {
     // page table entries, but the escape_list should be null
     if (!span->escape_list || !span->obj_size)
       return;
-    unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / span->obj_size;
+    unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / (span->obj_size * 8ULL);
     CHECK_CONDITION(idx < span->objects_per_span);
     if (!span->escape_list[idx])
       return;
@@ -958,7 +958,7 @@ inline void* do_malloc_pages(Policy policy, size_t size, int num_objects,
   }
 
   span->objects_per_span = (uint32_t)num_objects;
-  span->obj_size = (uint32_t)GetSize(result);
+  span->obj_size = (uint32_t) (GetSize(result) / 8);
   return result;
 }
 
@@ -1133,7 +1133,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     // the check is done in the following.
     // fixme
     size_t obj_size = GetSize(ptr);
-    CHECK_CONDITION(obj_size == span_->obj_size);
+    CHECK_CONDITION(obj_size == span_->obj_size * 8ULL);
     CHECK_CONDITION(obj_size != 0);
     size_t start_addr = (size_t)span_->start_address();
     if (((size_t)ptr - start_addr) % obj_size != 0) {
@@ -1213,7 +1213,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     // the check is done in the following.
     // fixme
     size_t obj_size = GetSize(ptr);
-    CHECK_CONDITION(obj_size == span_->obj_size);
+    CHECK_CONDITION(obj_size == span_->obj_size * 8ULL);
     CHECK_CONDITION(obj_size != 0);
     size_t start_addr = (size_t)span_->start_address();
     if (((size_t)ptr - start_addr) % obj_size != 0) {
@@ -1396,7 +1396,7 @@ static inline size_t do_get_chunk_end(void* base) noexcept {
     if (!span) {
       return 0x1000000000000;
     }
-    obj_size = span->obj_size;
+    obj_size = span->obj_size * 8ULL;
     start_addr = (size_t)span->start_address();
   }
 
@@ -1550,7 +1550,7 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
 #ifdef OBJ_SIZE_DEBUG
   span = tc_globals.pagemap().GetExistingDescriptor(p);
   CHECK_CONDITION(span->obj_size != 0);
-  CHECK_CONDITION(span->obj_size = GetSize(base));
+  CHECK_CONDITION(span->obj_size * 8ULL = GetSize(base));
 
   size_t raw_data = tc_globals.pagemap().get_page_info(p);
   if (raw_data) {
@@ -1568,7 +1568,7 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
     if (!span) {
       return 1;
     }
-    obj_size = span->obj_size;
+    obj_size = span->obj_size * 8ULL;
     start_addr = (size_t)span->start_address();
   }
 
@@ -1607,7 +1607,7 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
 #ifdef OBJ_SIZE_DEBUG
   span = tc_globals.pagemap().GetExistingDescriptor(p);
   CHECK_CONDITION(span->obj_size != 0);
-  CHECK_CONDITION(span->obj_size = GetSize(base));
+  CHECK_CONDITION(span->obj_size * 8ULL = GetSize(base));
 
   size_t raw_data = tc_globals.pagemap().get_page_info(p);
   if (raw_data) {
@@ -1625,7 +1625,7 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
     if (!span) {
       return 1;
     }
-    obj_size = span->obj_size;
+    obj_size = span->obj_size * 8ULL;
     start_addr = (size_t)span->start_address();
   }
 
@@ -1666,7 +1666,7 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
     if (!span) {
       return 0;
     }
-    obj_size = span->obj_size;
+    obj_size = span->obj_size * 8ULL;
     start_addr = (size_t)span->start_address();
   }
 
@@ -1726,7 +1726,7 @@ static inline int do_escape(
   tc_globals.escape_valid_cnt++;
 #endif
   // FIXME: obj_size shouldn't be 0
-  size_t obj_size = span->obj_size;
+  size_t obj_size = span->obj_size * 8ULL;
   if (ABSL_PREDICT_FALSE(obj_size == 0)) {
     printf("span %p obj size is 0\n", span);
     return -1;
@@ -1765,7 +1765,7 @@ static inline int do_escape(
         if (!span || !span->obj_size)
           continue;
         
-        obj_size = span->obj_size;
+        obj_size = span->obj_size * 8ULL;
         idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
         if (idx >= 1024)
           continue;
@@ -1815,7 +1815,7 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
       *start = 0;
       return 0x1000000000000;
     }
-    obj_size = span->obj_size;
+    obj_size = span->obj_size * 8ULL;
     start_addr = (size_t)span->start_address();
   }
 
