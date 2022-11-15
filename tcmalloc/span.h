@@ -253,6 +253,9 @@ class Span : public SpanList::Elem {
   void Prefetch();
 
   struct escape **escape_list = nullptr;
+#ifdef ESCAPE_DEBUG
+  size_t *escape_cnts = nullptr;
+#endif
   uint32_t obj_size;
   uint32_t objects_per_span;
 
@@ -616,7 +619,11 @@ inline void Span::Prefetch() {
 #else
   // The Span can occupy two cache lines, so prefetch the cacheline with the
   // most frequently accessed parts of the Span.
+#ifdef ESCAPE_DEBUG
+  static_assert(sizeof(Span) == 64+8, "Update span prefetch offset");
+#else
   static_assert(sizeof(Span) == 64, "Update span prefetch offset");
+#endif
   __builtin_prefetch(&this->escape_list, 1, 3);
 #endif
 #endif

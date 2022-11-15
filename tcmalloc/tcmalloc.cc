@@ -1694,8 +1694,15 @@ static inline void commit_escape(Span *span, void **loc,
     if (span->objects_per_span <= 2) {
       span->escape_list = (struct escape **)alloc_escape();
       memset(span->escape_list, 0, 16);
+#ifdef ESCAPE_DEBUG
+      span->escape_cnts = (size_t *)alloc_escape();
+      memset(span->escape_cnts, 0, 16);
+#endif
     } else {
       span->escape_list = alloc_escape_list();
+#ifdef ESCAPE_DEBUG
+      span->escape_cnts = (size_t *)alloc_escape_list();
+#endif
     }
   }
 
@@ -1705,6 +1712,13 @@ static inline void commit_escape(Span *span, void **loc,
   loc_e->loc = (void *)loc;
   loc_e->next = escape_list[idx];
   escape_list[idx] = loc_e;
+#ifdef ESCAPE_DEBUG
+  span->escape_cnts[idx]++;
+  size_t obj_start = (size_t)span->start_address() + span->obj_size*8 * idx;
+  if (span->escape_cnts[idx] > 1000) {
+    printf("ptr %p, loc %p, obj start 0x%lx size %ld objs_per_span %ld idx %d has refs %ld\n", ptr, loc, obj_start, span->obj_size*8, span->objects_per_span, idx, span->escape_cnts[idx]);
+  }
+#endif
 }
 
 static inline int do_escape(
