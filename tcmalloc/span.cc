@@ -51,6 +51,9 @@ void Span::DestroyEscape() {
 
   if (objects_per_span > 2) {
     Static::escape_list_allocator().Delete((EscapeList*)(escape_list));
+#ifdef ESCAPE_DEBUG
+    Static::escape_list_allocator().Delete((EscapeList*)(escape_cnts));
+#endif
   } else {
     Static::escape_allocator().Delete((EscapeChunk*)(escape_list));
   }
