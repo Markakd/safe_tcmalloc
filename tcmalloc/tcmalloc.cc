@@ -1777,7 +1777,7 @@ static inline int do_escape(
   // CHECK_CONDITION(idx < span->objects_per_span);
   if (ABSL_PREDICT_FALSE(idx >= span->objects_per_span)) {
     // this is a bug
-    printf("span %p obj_per_span %d idx %d, ptr %p start addr %p span size %lx obj size %x\n", span, span->objects_per_span, idx, ptr, span->start_address(), span->bytes_in_span(), span->obj_size);
+    // printf("span %p obj_per_span %d idx %d, ptr %p start addr %p span size %lx obj size %x\n", span, span->objects_per_span, idx, ptr, span->start_address(), span->bytes_in_span(), span->obj_size);
     return -1;
   }
 
