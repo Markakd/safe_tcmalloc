@@ -1777,7 +1777,7 @@ static inline int do_escape(
   // CHECK_CONDITION(idx < span->objects_per_span);
   if (ABSL_PREDICT_FALSE(idx >= span->objects_per_span)) {
     // this is a bug
-    printf("span %p obj_per_span %d idx %d, ptr %p start addr %p span size %lx obj size %x\n", span, span->objects_per_span, idx, ptr, span->start_address(), span->bytes_in_span(), span->obj_size);
+    // printf("span %p obj_per_span %d idx %d, ptr %p start addr %p span size %lx obj size %x\n", span, span->objects_per_span, idx, ptr, span->start_address(), span->bytes_in_span(), span->obj_size);
     return -1;
   }
 
@@ -1787,6 +1787,18 @@ static inline int do_escape(
       ptr = tc_globals.escape_caches[i].ptr;
       loc = tc_globals.escape_caches[i].loc;
       if (*loc == ptr) {
+        bool hit = false;
+        for (int i=0; i<16; i++) {
+          if (loc == tc_globals.escape_l2_caches[i].loc &&
+                ptr == tc_globals.escape_l2_caches[i].ptr) {
+            tc_globals.escape_l2_cache_optimized++;
+            hit = true;
+            break;
+          } 
+        }
+        if (hit)
+          continue;
+
         span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
         if (!span || !span->obj_size)
           continue;
@@ -1796,6 +1808,12 @@ static inline int do_escape(
         if (idx >= 1024)
           continue;
         commit_escape(span, loc, ptr, idx);
+
+        // update cache
+        idx = tc_globals.escape_l2_pos % 16;
+        tc_globals.escape_l2_caches[idx].loc = loc;
+        tc_globals.escape_l2_caches[idx].ptr = ptr;
+        tc_globals.escape_l2_pos++;
       } else {
         // removing old records is heavy
         // we leave it for free to do it
@@ -1863,6 +1881,7 @@ static inline void do_report_statistic() {
   fprintf(stderr, "escape optimized count\t: %ld\n", tc_globals.escape_loc_optimized);
   fprintf(stderr, "escape final count\t: %ld\n", tc_globals.escape_final_cnt);
   fprintf(stderr, "escape cache optimized\t: %ld\n", tc_globals.escape_cache_optimized);
+  fprintf(stderr, "escape l2 ca optimized\t: %ld\n", tc_globals.escape_l2_cache_optimized);
   fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);

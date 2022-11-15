@@ -36,6 +36,8 @@ GOOGLE_MALLOC_SECTION_BEGIN
 namespace tcmalloc {
 namespace tcmalloc_internal {
 
+// #define ESCAPE_DEBUG
+
 // Can fit 64 objects into a bitmap, so determine what the minimum object
 // size needs to be in order for that to work. This makes the assumption that
 // we don't increase the number of pages at a point where the object count
