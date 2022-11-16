@@ -908,6 +908,21 @@ static inline void flush_escape() {
     void *ptr = tc_globals.escape_caches[i].ptr;
     void **loc = tc_globals.escape_caches[i].loc;
     if (*loc == ptr) {
+
+#ifdef ESCAPE_CACHE_L2
+      bool hit = false;
+      for (int i=0; i<16; i++) {
+        if (loc == tc_globals.escape_l2_caches[i].loc &&
+              ptr == tc_globals.escape_l2_caches[i].ptr) {
+          tc_globals.escape_l2_cache_optimized++;
+          hit = true;
+          break;
+        } 
+      }
+      if (hit)
+        continue;
+#endif
+
       Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
       if (!span || !span->obj_size)
         continue;
@@ -917,6 +932,13 @@ static inline void flush_escape() {
       if (idx >= 1024)
         continue;
       commit_escape(span, loc, ptr, idx);
+
+#ifdef ESCAPE_CACHE_L2
+      idx = tc_globals.escape_l2_pos % 16;
+      tc_globals.escape_l2_caches[idx].loc = loc;
+      tc_globals.escape_l2_caches[idx].ptr = ptr;
+      tc_globals.escape_l2_pos++;
+#endif
     } else {
       // removing old records is heavy
       // we leave it for free to do it

@@ -57,7 +57,10 @@ class ThreadCache;
 struct escape_cache {
   void **loc; void *ptr; // void *old_ptr;
 };
+
+#define ESCAPE_CACHE_L2
 #define CACHE_SIZE 1024
+#define L2_CACHE_SIZE 16
 
 using SampledAllocationRecorder =
     ::tcmalloc::tcmalloc_internal::SampleRecorder<SampledAllocation,
@@ -189,13 +192,17 @@ class Static final {
   static size_t escape_heap_cnt;
   static size_t escape_loc_optimized;
   static size_t escape_cache_optimized;
+  static size_t escape_l2_cache_optimized;
   static size_t escape_final_cnt;
   static size_t get_end_cnt;
   static size_t gep_check_cnt;
   static size_t bc_check_cnt;
 #endif
   static uint32_t escape_pos;
-  static uint32_t padding;
+#ifdef ESCAPE_CACHE_L2
+  static uint32_t escape_l2_pos;
+  static struct escape_cache escape_l2_caches[L2_CACHE_SIZE];
+#endif
   static struct escape_cache escape_caches[CACHE_SIZE];
 
  private:

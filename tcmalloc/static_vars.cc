@@ -83,13 +83,19 @@ size_t Static::escape_valid_cnt;
 size_t Static::escape_heap_cnt;
 size_t Static::escape_loc_optimized;
 size_t Static::escape_cache_optimized;
+size_t Static::escape_l2_cache_optimized;
 size_t Static::escape_final_cnt;
 size_t Static::get_end_cnt;
 size_t Static::gep_check_cnt;
 size_t Static::bc_check_cnt;
 #endif
 uint32_t Static::escape_pos;
-uint32_t Static::padding;
+
+#ifdef ESCAPE_CACHE_L2
+uint32_t Static::escape_l2_pos;
+struct escape_cache Static::escape_l2_caches[L2_CACHE_SIZE];
+#endif
+
 struct escape_cache Static::escape_caches[CACHE_SIZE];
 
 size_t Static::metadata_bytes() {
@@ -112,9 +118,10 @@ size_t Static::metadata_bytes() {
       sizeof(sampled_internal_fragmentation_) +
       sizeof(peak_heap_tracker_) + sizeof(guardedpage_allocator_) +
 #ifdef ENABLE_STATISTIC
-      sizeof(size_t) * 11 +
+      sizeof(size_t) * 12 +
 #endif
       sizeof(size_t) + sizeof(struct escape_cache) * CACHE_SIZE +
+      sizeof(struct escape_cache) * L2_CACHE_SIZE +
       sizeof(numa_topology_) + sizeof(escape_allocator_) +
       sizeof(escape_list_allocator_);
   // LINT.ThenChange(:static_vars)
