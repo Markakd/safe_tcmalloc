@@ -869,6 +869,65 @@ static inline void delete_escape(struct escape *e) {
   Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
 }
 
+static inline void commit_escape(Span *span, void **loc,
+    void *ptr, unsigned idx) {
+  // insert escape here
+  if (span->escape_list == nullptr) {
+    if (span->objects_per_span <= 2) {
+      span->escape_list = (struct escape **)alloc_escape();
+      memset(span->escape_list, 0, 16);
+#ifdef ESCAPE_DEBUG
+      span->escape_cnts = (size_t *)alloc_escape();
+      memset(span->escape_cnts, 0, 16);
+#endif
+    } else {
+      span->escape_list = alloc_escape_list();
+#ifdef ESCAPE_DEBUG
+      span->escape_cnts = (size_t *)alloc_escape_list();
+#endif
+    }
+  }
+
+  struct escape **escape_list = span->escape_list;
+  // store the loc into ptr's escapes
+  struct escape *loc_e = alloc_escape();
+  loc_e->loc = (void *)loc;
+  loc_e->next = escape_list[idx];
+  escape_list[idx] = loc_e;
+#ifdef ESCAPE_DEBUG
+  span->escape_cnts[idx]++;
+  size_t obj_start = (size_t)span->start_address() + span->obj_size*8 * idx;
+  if (span->escape_cnts[idx] > 1000) {
+    printf("ptr %p, loc %p, obj start 0x%lx size %ld objs_per_span %ld idx %d has refs %ld\n", ptr, loc, obj_start, span->obj_size*8, span->objects_per_span, idx, span->escape_cnts[idx]);
+  }
+#endif
+}
+
+static inline void flush_escape() {
+  for (int i=0; i<tc_globals.escape_pos; i++) {
+    void *ptr = tc_globals.escape_caches[i].ptr;
+    void **loc = tc_globals.escape_caches[i].loc;
+    if (*loc == ptr) {
+      Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
+      if (!span || !span->obj_size)
+        continue;
+      
+      size_t obj_size = span->obj_size * 8ULL;
+      size_t idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+      if (idx >= 1024)
+        continue;
+      commit_escape(span, loc, ptr, idx);
+    } else {
+      // removing old records is heavy
+      // we leave it for free to do it
+#ifdef ENABLE_STATISTIC
+      tc_globals.escape_cache_optimized++;
+#endif
+    }
+  }
+  tc_globals.escape_pos = 0;
+}
+
 static inline void insert_escape(void **loc, void *ptr,
     unsigned idx) {
   // todo
@@ -1124,6 +1183,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
 #ifdef ENABLE_STATISTIC
   tc_globals.free_cnt++;
 #endif
+
+  // we need to flush all escapes from cache
+  // to avoid fn
+  flush_escape();
 
 #ifdef ENABLE_PROTECTION
   Span* span_ = tc_globals.pagemap().GetDescriptor(p);
@@ -1687,40 +1750,6 @@ static inline size_t do_get_chunk_start(void* base) noexcept {
   return chunk_start;
 }
 
-static inline void commit_escape(Span *span, void **loc,
-    void *ptr, unsigned idx) {
-  // insert escape here
-  if (span->escape_list == nullptr) {
-    if (span->objects_per_span <= 2) {
-      span->escape_list = (struct escape **)alloc_escape();
-      memset(span->escape_list, 0, 16);
-#ifdef ESCAPE_DEBUG
-      span->escape_cnts = (size_t *)alloc_escape();
-      memset(span->escape_cnts, 0, 16);
-#endif
-    } else {
-      span->escape_list = alloc_escape_list();
-#ifdef ESCAPE_DEBUG
-      span->escape_cnts = (size_t *)alloc_escape_list();
-#endif
-    }
-  }
-
-  struct escape **escape_list = span->escape_list;
-  // store the loc into ptr's escapes
-  struct escape *loc_e = alloc_escape();
-  loc_e->loc = (void *)loc;
-  loc_e->next = escape_list[idx];
-  escape_list[idx] = loc_e;
-#ifdef ESCAPE_DEBUG
-  span->escape_cnts[idx]++;
-  size_t obj_start = (size_t)span->start_address() + span->obj_size*8 * idx;
-  if (span->escape_cnts[idx] > 1000) {
-    printf("ptr %p, loc %p, obj start 0x%lx size %ld objs_per_span %ld idx %d has refs %ld\n", ptr, loc, obj_start, span->obj_size*8, span->objects_per_span, idx, span->escape_cnts[idx]);
-  }
-#endif
-}
-
 static inline int do_escape(
     void **loc, void* ptr) noexcept {
   // store pointer new into loc
@@ -1783,28 +1812,7 @@ static inline int do_escape(
 
   if (tc_globals.escape_pos == CACHE_SIZE) {
     // do commit
-    for (int i=0; i<CACHE_SIZE; i++) {
-      ptr = tc_globals.escape_caches[i].ptr;
-      loc = tc_globals.escape_caches[i].loc;
-      if (*loc == ptr) {
-        span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
-        if (!span || !span->obj_size)
-          continue;
-        
-        obj_size = span->obj_size * 8ULL;
-        idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
-        if (idx >= 1024)
-          continue;
-        commit_escape(span, loc, ptr, idx);
-      } else {
-        // removing old records is heavy
-        // we leave it for free to do it
-#ifdef ENABLE_STATISTIC
-        tc_globals.escape_cache_optimized++;
-#endif
-      }
-    }
-    tc_globals.escape_pos = 0;
+    flush_escape();
   }
 
   tc_globals.escape_caches[tc_globals.escape_pos].loc = loc;
