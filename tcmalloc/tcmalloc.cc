@@ -914,7 +914,9 @@ static inline void flush_escape() {
       for (int i=0; i<16; i++) {
         if (loc == tc_globals.escape_l2_caches[i].loc &&
               ptr == tc_globals.escape_l2_caches[i].ptr) {
+#ifdef ENABLE_STATISTIC
           tc_globals.escape_l2_cache_optimized++;
+#endif
           hit = true;
           break;
         } 
