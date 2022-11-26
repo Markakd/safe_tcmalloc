@@ -969,7 +969,9 @@ static inline void poison_escapes(Span *span, int idx,
     struct escape *next = cur->next;
     void* cur_addr = *(reinterpret_cast<void**>(cur->loc));
     if (ptr <= cur_addr && cur_addr < end) {
-      // *(reinterpret_cast<size_t*>(cur->loc)) |= (size_t) 0xdeadbeef00000000;
+#ifdef CRASH_ON_CORRUPTION
+      *(reinterpret_cast<size_t*>(cur->loc)) |= (size_t) 0xdeadbeef00000000;
+#endif
     }
     delete_escape(cur);
     cur = next;
@@ -1224,8 +1226,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     CHECK_CONDITION(obj_size != 0);
     size_t start_addr = (size_t)span_->start_address();
     if (((size_t)ptr - start_addr) % obj_size != 0) {
+#ifdef ENABLE_ERROR_REPORT
       Log(kLogWithStack, __FILE__, __LINE__,
           "double/invalid free detected");
+#endif
 #ifdef CRASH_ON_CORRUPTION
       fflush(stdout);
       abort();
@@ -1237,11 +1241,15 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
+#ifdef ENABLE_ERROR_REPORT
       Log(kLogWithStack, __FILE__, __LINE__,
         "double/invalid free detected");
+#endif
     } else {
+#ifdef ENABLE_ERROR_REPORT
       Log(kLogWithStack, __FILE__, __LINE__,
         "freeing a pointer with no span", ptr);
+#endif
     }
 #ifdef CRASH_ON_CORRUPTION
     fflush(stdout);
@@ -1306,8 +1314,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     CHECK_CONDITION(obj_size != 0);
     size_t start_addr = (size_t)span_->start_address();
     if (((size_t)ptr - start_addr) % obj_size != 0) {
+#ifdef ENABLE_ERROR_REPORT
       Log(kLogWithStack, __FILE__, __LINE__,
           "double/invalid free detected");
+#endif
 #ifdef CRASH_ON_CORRUPTION
       fflush(stdout);
       abort();
@@ -1319,11 +1329,15 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
+#ifdef ENABLE_ERROR_REPORT
       Log(kLogWithStack, __FILE__, __LINE__,
         "double/invalid free detected");
+#endif
     } else {
+#ifdef ENABLE_ERROR_REPORT
       Log(kLogWithStack, __FILE__, __LINE__,
         "freeing a pointer with no span", ptr);
+#endif
     }
 #ifdef CRASH_ON_CORRUPTION
     fflush(stdout);
