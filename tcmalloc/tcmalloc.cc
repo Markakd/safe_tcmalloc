@@ -1683,7 +1683,7 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
     start_addr = (size_t)span->start_address();
   }
 
-  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_start = start_addr + (((size_t)base - start_addr) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
 
 #ifdef PROTECTION_DEBUG
@@ -1741,7 +1741,7 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
     start_addr = (size_t)span->start_address();
   }
 
-  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
+  size_t chunk_start = start_addr + (((size_t)base - start_addr) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
 
 #ifdef PROTECTION_DEBUG
