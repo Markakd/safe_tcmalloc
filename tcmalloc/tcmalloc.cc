@@ -1212,7 +1212,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
 
   // we need to flush all escapes from cache
   // to avoid fn
+// #define USE_FLUSH_IN_FREE
+#ifdef USE_FLUSH_IN_FREE
   flush_escape();
+#endif
 
 #ifdef ENABLE_PROTECTION
   Span* span_ = tc_globals.pagemap().GetDescriptor(p);
@@ -1239,6 +1242,25 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     // free all escapes to p
     int idx = ((size_t)ptr - start_addr) / obj_size;
     poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
+
+#ifndef USE_FLUSH_IN_FREE
+    for (int i=0; i<tc_globals.escape_pos; i++) {
+      void *ptr_ = tc_globals.escape_caches[i].ptr;
+      void **loc = tc_globals.escape_caches[i].loc;
+
+      if ((size_t)ptr <= (size_t)ptr_ && (size_t)ptr_ < ((size_t)ptr + obj_size)) {
+        // need to poison
+        if (*loc == ptr_) {
+#ifdef CRASH_ON_CORRUPTION
+          // *(size_t *)loc = ptr_ | 0xdeadbeef00000000;
+#else
+          // need to make sure flush will skip this entry
+          tc_globals.escape_caches[i].ptr = (void *)0x2;
+#endif
+        }
+      }
+    }
+#endif
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
 #ifdef ENABLE_ERROR_REPORT
