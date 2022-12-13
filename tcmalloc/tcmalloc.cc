@@ -907,7 +907,8 @@ static inline void flush_escape() {
   for (int i=0; i<tc_globals.escape_pos; i++) {
     void *ptr = tc_globals.escape_caches[i].ptr;
     void **loc = tc_globals.escape_caches[i].loc;
-    if (*loc == ptr) {
+    // if (*loc == ptr) {
+    if (1) {
 
 #ifdef ESCAPE_CACHE_L2
       bool hit = false;
@@ -1250,9 +1251,10 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
 
       if ((size_t)ptr <= (size_t)ptr_ && (size_t)ptr_ < ((size_t)ptr + obj_size)) {
         // need to poison
-        if (*loc == ptr_) {
+        void *real_ptr = *loc;
+        if ((size_t)ptr <= (size_t)real_ptr && (size_t)real_ptr < ((size_t)ptr + obj_size)) {
 #ifdef CRASH_ON_CORRUPTION
-          // *(size_t *)loc = ptr_ | 0xdeadbeef00000000;
+          *(size_t *)loc = (size_t)real_ptr | 0xdeadbeef00000000;
 #else
           // need to make sure flush will skip this entry
           tc_globals.escape_caches[i].ptr = (void *)0x2;
