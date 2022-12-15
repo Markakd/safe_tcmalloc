@@ -907,9 +907,13 @@ static inline void flush_escape() {
   for (int i=0; i<tc_globals.escape_pos; i++) {
     void *ptr = tc_globals.escape_caches[i].ptr;
     void **loc = tc_globals.escape_caches[i].loc;
-    // if (*loc == ptr) {
-    if (1) {
 
+    Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
+    if (!span || !span->obj_size)
+      continue;
+    size_t obj_size = span->obj_size * 8ULL;
+    size_t real_ptr = *(size_t *)loc;
+    if (real_ptr >= (size_t)ptr && real_ptr < ((size_t)ptr+obj_size)) {
 #ifdef ESCAPE_CACHE_L2
       bool hit = false;
       for (int i=0; i<16; i++) {
@@ -925,12 +929,6 @@ static inline void flush_escape() {
       if (hit)
         continue;
 #endif
-
-      Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
-      if (!span || !span->obj_size)
-        continue;
-      
-      size_t obj_size = span->obj_size * 8ULL;
       size_t idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
       if (idx >= 1024)
         continue;
