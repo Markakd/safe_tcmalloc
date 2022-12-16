@@ -940,6 +940,8 @@ static inline void flush_escape() {
       if (!span || span->obj_size != OBJ_SIZE_RAW(ptr_info))
         continue;
       unsigned obj_idx = ((size_t)real_ptr - (size_t)span->start_address()) / obj_size;
+      if (obj_idx >= 1024)
+        continue;
       commit_escape(span, (void **)loc, (void *)real_ptr, obj_idx);
 
 #ifdef ESCAPE_CACHE_L2
