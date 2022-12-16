@@ -1314,7 +1314,23 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     // free all escapes to p
     int idx = ((size_t)ptr - start_addr) / obj_size;
     poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
-    abort();
+    for (int i=0; i<tc_globals.escape_pos; i++) {
+      if (OBJ_START(tc_globals.escape_caches[i].ptr) != SMALL_PTR(ptr))
+        continue;
+      void **loc = tc_globals.escape_caches[i].loc;
+      void *real_ptr = *loc;
+      if ((size_t)ptr <= (size_t)real_ptr && (size_t)real_ptr < ((size_t)ptr + obj_size)) {
+#ifdef PROTECTION_DEBUG
+        printf("poison escape: loc (%p) -> ptr (%p)\n", loc, real_ptr);
+#endif
+
+#ifdef CRASH_ON_CORRUPTION
+        *(size_t *)loc = (size_t)real_ptr | 0xdeadbeef00000000;
+#endif
+        // need to make sure flush will skip this entry
+        tc_globals.escape_caches[i].ptr = -1;
+      }
+    }
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
 #ifdef ENABLE_ERROR_REPORT
