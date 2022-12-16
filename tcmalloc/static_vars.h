@@ -55,12 +55,21 @@ class PageMap;
 class ThreadCache;
 
 struct escape_cache {
-  void **loc; void *ptr; // void *old_ptr;
+  void **loc; size_t ptr; // void *old_ptr;
+};
+
+struct escape_l2_cache {
+  uint32_t loc; uint32_t obj_start;
 };
 
 #define ESCAPE_CACHE_L2
 #define CACHE_SIZE 1024
 #define L2_CACHE_SIZE 16
+
+#define OBJ_START(x) (uint64_t)((uint64_t)x >> 24)
+#define SMALL_PTR(x) (uint64_t)((uint64_t)x & 0xffffffffff)
+#define OBJ_SIZE(x) (((uint32_t)(x & 0xffffff)) << 3)
+#define OBJ_SIZE_RAW(x) ((uint32_t)(x & 0xffffff))
 
 using SampledAllocationRecorder =
     ::tcmalloc::tcmalloc_internal::SampleRecorder<SampledAllocation,
@@ -198,11 +207,11 @@ class Static final {
   static size_t gep_check_cnt;
   static size_t bc_check_cnt;
 #endif
-  static uint32_t escape_pos;
 #ifdef ESCAPE_CACHE_L2
   static uint32_t escape_l2_pos;
-  static struct escape_cache escape_l2_caches[L2_CACHE_SIZE];
+  static struct escape_l2_cache escape_l2_caches[L2_CACHE_SIZE];
 #endif
+  static uint32_t escape_pos;
   static struct escape_cache escape_caches[CACHE_SIZE];
 
  private:

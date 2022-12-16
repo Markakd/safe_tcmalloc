@@ -888,6 +888,10 @@ static inline void commit_escape(Span *span, void **loc,
     }
   }
 
+#ifdef PROTECTION_DEBUG
+  printf("committing escapes %p -> %p\n", loc, ptr);
+#endif
+
   struct escape **escape_list = span->escape_list;
   // store the loc into ptr's escapes
   struct escape *loc_e = alloc_escape();
@@ -904,21 +908,24 @@ static inline void commit_escape(Span *span, void **loc,
 }
 
 static inline void flush_escape() {
+#ifdef PROTECTION_DEBUG
+  printf("flushing caches\n");
+#endif
   for (int i=0; i<tc_globals.escape_pos; i++) {
-    void *ptr = tc_globals.escape_caches[i].ptr;
-    void **loc = tc_globals.escape_caches[i].loc;
-
-    Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
-    if (!span || !span->obj_size)
-      continue;
-    size_t obj_size = span->obj_size * 8ULL;
+    size_t loc = (size_t)tc_globals.escape_caches[i].loc;
+    size_t ptr_info = tc_globals.escape_caches[i].ptr;
     size_t real_ptr = *(size_t *)loc;
-    if (real_ptr >= (size_t)ptr && real_ptr < ((size_t)ptr+obj_size)) {
+    size_t obj_start = OBJ_START(ptr_info);
+    uint32_t obj_size = OBJ_SIZE(ptr_info);
+
+    // might have collision here
+    // but it doesn't matter
+    if (SMALL_PTR(real_ptr) >= obj_start && SMALL_PTR(real_ptr) < (obj_start+obj_size)) {
 #ifdef ESCAPE_CACHE_L2
       bool hit = false;
-      for (int i=0; i<16; i++) {
-        if (loc == tc_globals.escape_l2_caches[i].loc &&
-              ptr == tc_globals.escape_l2_caches[i].ptr) {
+      for (int i=0; i<L2_CACHE_SIZE; i++) {
+        if ((uint32_t)loc == tc_globals.escape_l2_caches[i].loc &&
+              (uint32_t)obj_start == tc_globals.escape_l2_caches[i].obj_start) {
 #ifdef ENABLE_STATISTIC
           tc_globals.escape_l2_cache_optimized++;
 #endif
@@ -929,16 +936,17 @@ static inline void flush_escape() {
       if (hit)
         continue;
 #endif
-      size_t idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
-      if (idx >= 1024)
+      Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)real_ptr));
+      if (!span || span->obj_size != OBJ_SIZE_RAW(ptr_info))
         continue;
-      commit_escape(span, loc, ptr, idx);
+      unsigned obj_idx = ((size_t)real_ptr - (size_t)span->start_address()) / obj_size;
+      commit_escape(span, (void **)loc, (void *)real_ptr, obj_idx);
 
 #ifdef ESCAPE_CACHE_L2
-      idx = tc_globals.escape_l2_pos % 16;
-      tc_globals.escape_l2_caches[idx].loc = loc;
-      tc_globals.escape_l2_caches[idx].ptr = ptr;
-      tc_globals.escape_l2_pos++;
+      unsigned idx = tc_globals.escape_l2_pos % L2_CACHE_SIZE;
+      tc_globals.escape_l2_caches[idx].loc = (uint32_t)loc;
+      tc_globals.escape_l2_caches[idx].obj_start = (uint32_t)obj_start;
+      tc_globals.escape_l2_pos = ++idx;
 #endif
     } else {
       // removing old records is heavy
@@ -949,12 +957,6 @@ static inline void flush_escape() {
     }
   }
   tc_globals.escape_pos = 0;
-}
-
-static inline void insert_escape(void **loc, void *ptr,
-    unsigned idx) {
-  // todo
-  return;
 }
 
 static inline void poison_escapes(Span *span, int idx,
@@ -971,41 +973,14 @@ static inline void poison_escapes(Span *span, int idx,
 #ifdef CRASH_ON_CORRUPTION
       *(reinterpret_cast<size_t*>(cur->loc)) |= (size_t) 0xdeadbeef00000000;
 #endif
+#ifdef PROTECTION_DEBUG
+      printf("poison escape: loc (%p) -> ptr (%p)\n", cur->loc, cur_addr);
+#endif
     }
     delete_escape(cur);
     cur = next;
   }
   escape_list[idx] = nullptr;
-}
-
-static inline void clear_old_escape(void *ptr, void *loc) {
-  Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining(ptr));
-  if (span != nullptr) {
-    span->Prefetch();
-
-    // It is possible that ptr points to a span in the freelist
-    // for page_heap maintained span, span in the freelist still has
-    // page table entries, but the escape_list should be null
-    if (!span->escape_list || !span->obj_size)
-      return;
-    unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / (span->obj_size * 8ULL);
-    CHECK_CONDITION(idx < span->objects_per_span);
-    if (!span->escape_list[idx])
-      return;
-    struct escape *cur, *pre;
-    for (pre=nullptr, cur=span->escape_list[idx]; cur; cur = cur->next) {
-      if (cur->loc == loc) {
-        if (pre) {
-          pre->next = cur->next;
-        } else {
-          span->escape_list[idx] = cur->next;
-        }
-        delete_escape(cur);
-        break;
-      }
-      pre = cur;
-    }
-  }
 }
 
 template <typename Policy, typename CapacityPtr = std::nullptr_t>
@@ -1209,13 +1184,6 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
   tc_globals.free_cnt++;
 #endif
 
-  // we need to flush all escapes from cache
-  // to avoid fn
-// #define USE_FLUSH_IN_FREE
-#ifdef USE_FLUSH_IN_FREE
-  flush_escape();
-#endif
-
 #ifdef ENABLE_PROTECTION
   Span* span_ = tc_globals.pagemap().GetDescriptor(p);
   if (span_) {
@@ -1241,26 +1209,23 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
     // free all escapes to p
     int idx = ((size_t)ptr - start_addr) / obj_size;
     poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
-
-#ifndef USE_FLUSH_IN_FREE
     for (int i=0; i<tc_globals.escape_pos; i++) {
-      void *ptr_ = tc_globals.escape_caches[i].ptr;
+      if (OBJ_START(tc_globals.escape_caches[i].ptr) != SMALL_PTR(ptr))
+        continue;
       void **loc = tc_globals.escape_caches[i].loc;
-
-      if ((size_t)ptr <= (size_t)ptr_ && (size_t)ptr_ < ((size_t)ptr + obj_size)) {
-        // need to poison
-        void *real_ptr = *loc;
-        if ((size_t)ptr <= (size_t)real_ptr && (size_t)real_ptr < ((size_t)ptr + obj_size)) {
-#ifdef CRASH_ON_CORRUPTION
-          *(size_t *)loc = (size_t)real_ptr | 0xdeadbeef00000000;
-#else
-          // need to make sure flush will skip this entry
-          tc_globals.escape_caches[i].ptr = (void *)0x2;
+      void *real_ptr = *loc;
+      if ((size_t)ptr <= (size_t)real_ptr && (size_t)real_ptr < ((size_t)ptr + obj_size)) {
+#ifdef PROTECTION_DEBUG
+        printf("poison escape: loc (%p) -> ptr (%p)\n", loc, real_ptr);
 #endif
-        }
+
+#ifdef CRASH_ON_CORRUPTION
+        *(size_t *)loc = (size_t)real_ptr | 0xdeadbeef00000000;
+#endif
+        // need to make sure flush will skip this entry
+        tc_globals.escape_caches[i].ptr = -1;
       }
     }
-#endif
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
 #ifdef ENABLE_ERROR_REPORT
@@ -1279,7 +1244,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size_class(
 #endif
     return;
   }
-#endif
+#endif // END of ENABLE_PROTECTION
 
   if (!have_size_class) {
     size_class = tc_globals.pagemap().sizeclass(p);
@@ -1349,6 +1314,7 @@ inline ABSL_ATTRIBUTE_ALWAYS_INLINE void do_free_with_size(void* ptr,
     // free all escapes to p
     int idx = ((size_t)ptr - start_addr) / obj_size;
     poison_escapes(span_, idx, ptr, (char*)ptr + obj_size);
+    abort();
   } else {
     if ((reinterpret_cast<uintptr_t>(ptr) & 0xdeadbeef00000000) == 0xdeadbeef00000000) {
 #ifdef ENABLE_ERROR_REPORT
@@ -1825,10 +1791,10 @@ static inline int do_escape(
   // }
 
   // this is cheap but optimizes a lot for perl
-  Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
-  if (!loc_span) {
-    return -1;
-  }
+  // Span* loc_span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)loc));
+  // if (!loc_span) {
+  //   return -1;
+  // }
 #ifdef ENABLE_STATISTIC
   tc_globals.escape_heap_cnt++;
 #endif
@@ -1847,11 +1813,14 @@ static inline int do_escape(
     return -1;
   }
 
-  unsigned idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
-  size_t obj_start = (size_t)span->start_address() + obj_size * idx;
+  size_t idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
+  if (idx >= 1024)
+    return -1;
 
+  size_t obj_start = (size_t)span->start_address() + obj_size * idx;
   void *old_ptr = *loc;
-  if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < obj_start+obj_size) {
+
+  if (obj_start <= (size_t)old_ptr && (size_t)old_ptr < (obj_start + obj_size)) {
     // same loc, optimize this
 #ifdef ENABLE_STATISTIC
     tc_globals.escape_loc_optimized++;
@@ -1875,9 +1844,15 @@ static inline int do_escape(
     flush_escape();
   }
 
+  size_t ptr_info = (obj_start << 24) | ((uint32_t)span->obj_size);
   tc_globals.escape_caches[tc_globals.escape_pos].loc = loc;
-  // tc_globals.escape_caches[tc_globals.escape_pos].old_ptr = *loc;
-  tc_globals.escape_caches[tc_globals.escape_pos++].ptr = ptr;
+  tc_globals.escape_caches[tc_globals.escape_pos++].ptr = ptr_info;
+
+  CHECK_CONDITION(OBJ_START(ptr_info) == SMALL_PTR(obj_start));
+  CHECK_CONDITION(OBJ_SIZE(ptr_info) == (uint32_t)obj_size);
+#ifdef PROTECTION_DEBUG
+  printf("cached escape: loc (%p) -> ptr (%p)\n", loc, ptr);
+#endif
   return 0;
 }
 
