@@ -1866,9 +1866,9 @@ static inline int do_escape(
   tc_globals.escape_caches[tc_globals.escape_pos].loc = loc;
   tc_globals.escape_caches[tc_globals.escape_pos++].ptr = ptr_info;
 
+#ifdef PROTECTION_DEBUG
   CHECK_CONDITION(OBJ_START(ptr_info) == SMALL_PTR(obj_start));
   CHECK_CONDITION(OBJ_SIZE(ptr_info) == (uint32_t)obj_size);
-#ifdef PROTECTION_DEBUG
   printf("cached escape: loc (%p) -> ptr (%p)\n", loc, ptr);
 #endif
   return 0;
