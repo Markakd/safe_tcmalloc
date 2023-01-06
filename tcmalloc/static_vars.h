@@ -203,9 +203,12 @@ class Static final {
   static size_t escape_cache_optimized;
   static size_t escape_l2_cache_optimized;
   static size_t escape_final_cnt;
-  static size_t get_end_cnt;
+  static size_t get_range_cnt;
   static size_t gep_check_cnt;
   static size_t bc_check_cnt;
+  static size_t get_range_invalid_cnt;
+  static size_t gep_check_invalid_cnt;
+  static size_t bc_check_invalid_cnt;
 #endif
 #ifdef ESCAPE_CACHE_L2
   static uint32_t escape_l2_pos;

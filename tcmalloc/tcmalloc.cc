@@ -1489,9 +1489,6 @@ inline struct mallinfo do_mallinfo() {
 #endif  // TCMALLOC_HAVE_STRUCT_MALLINFO
 
 static inline size_t do_get_chunk_end(void* base) noexcept {
-#ifdef ENABLE_STATISTIC
-  tc_globals.get_end_cnt++;
-#endif
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span* span;
@@ -1683,6 +1680,9 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
+#ifdef ENABLE_STATISTIC
+  tc_globals.gep_check_invalid_cnt++;
+#endif
       return 1;
     }
     obj_size = span->obj_size * 8ULL;
@@ -1741,6 +1741,9 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
+#ifdef ENABLE_STATISTIC
+  tc_globals.bc_check_invalid_cnt++;
+#endif
       return 1;
     }
     obj_size = span->obj_size * 8ULL;
@@ -1886,7 +1889,7 @@ static inline void do_report_error() noexcept {
 
 static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 #ifdef ENABLE_STATISTIC
-  tc_globals.get_end_cnt++;
+  tc_globals.get_range_cnt++;
 #endif
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
@@ -1900,6 +1903,9 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
+#ifdef ENABLE_STATISTIC
+  tc_globals.get_range_invalid_cnt++;
+#endif
       *start = 0;
       return 0x1000000000000;
     }
@@ -1924,9 +1930,12 @@ static inline void do_report_statistic() {
   fprintf(stderr, "escape optimized count\t: %ld\n", tc_globals.escape_loc_optimized);
   fprintf(stderr, "escape final count\t: %ld\n", tc_globals.escape_final_cnt);
   fprintf(stderr, "escape cache optimized\t: %ld\n", tc_globals.escape_cache_optimized);
-  fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
+  fprintf(stderr, "get range count\t: %ld\n", tc_globals.get_range_cnt);
+  fprintf(stderr, "get range invalid count\t: %ld\n", tc_globals.get_range_invalid_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
+  fprintf(stderr, "gep check invalid count\t: %ld\n", tc_globals.gep_check_invalid_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
+  fprintf(stderr, "bc check invalid count\t: %ld\n", tc_globals.bc_check_invalid_cnt);
 #endif
 }
 
