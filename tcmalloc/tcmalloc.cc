@@ -852,7 +852,7 @@ inline size_t GetSize(const void* ptr) {
 
 static inline struct escape** alloc_escape_list() {
   struct escape **list = (struct escape **)Static::escape_list_allocator().New();
-  memset(list, 0, 1024*sizeof(struct escape *));
+  memset(list, 0, escapeListSize*sizeof(struct escape *));
   return list;
 }
 
@@ -940,7 +940,7 @@ static inline void flush_escape() {
       if (!span || span->obj_size != OBJ_SIZE_RAW(ptr_info))
         continue;
       unsigned obj_idx = ((size_t)real_ptr - (size_t)span->start_address()) / obj_size;
-      if (obj_idx >= 1024)
+      if (obj_idx >= escapeListSize)
         continue;
       commit_escape(span, (void **)loc, (void *)real_ptr, obj_idx);
 
@@ -1835,7 +1835,7 @@ static inline int do_escape(
   }
 
   size_t idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
-  if (idx >= 1024)
+  if (idx >= escapeListSize)
     return -1;
 
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
