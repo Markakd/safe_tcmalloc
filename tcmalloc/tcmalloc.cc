@@ -923,15 +923,16 @@ static inline void flush_escape() {
     if (SMALL_PTR(real_ptr) >= obj_start && SMALL_PTR(real_ptr) < (obj_start+obj_size)) {
 #ifdef ESCAPE_CACHE_L2
       bool hit = false;
-      for (int i=0; i<L2_CACHE_SIZE; i++) {
-        if ((uint32_t)loc == tc_globals.escape_l2_caches[i].loc &&
-              (uint32_t)obj_start == tc_globals.escape_l2_caches[i].obj_start) {
+      escape_l2_cache *ec = tc_globals.escape_l2_caches + MASK(loc);
+      for (int i = 0; i < L2_CACHE_NUM; ++i) {
+        if ((uint32_t)loc == ec->entry[i].loc &&
+            (uint32_t)obj_start == ec->entry[i].obj_start) {
 #ifdef ENABLE_STATISTIC
           tc_globals.escape_l2_cache_optimized++;
 #endif
           hit = true;
-          break;
-        } 
+          break;  
+        }
       }
       if (hit)
         continue;
@@ -945,10 +946,10 @@ static inline void flush_escape() {
       commit_escape(span, (void **)loc, (void *)real_ptr, obj_idx);
 
 #ifdef ESCAPE_CACHE_L2
-      unsigned idx = tc_globals.escape_l2_pos % L2_CACHE_SIZE;
-      tc_globals.escape_l2_caches[idx].loc = (uint32_t)loc;
-      tc_globals.escape_l2_caches[idx].obj_start = (uint32_t)obj_start;
-      tc_globals.escape_l2_pos = ++idx;
+      unsigned idx = ec->idx;
+      ec->entry[idx].loc = (uint32_t)loc;
+      ec->entry[idx].obj_start = (uint32_t)obj_start;
+      ec->idx = (ec->idx + 1) % L2_CACHE_NUM;
 #endif
     } else {
       // removing old records is heavy

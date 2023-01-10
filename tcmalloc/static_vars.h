@@ -58,18 +58,26 @@ struct escape_cache {
   void **loc; size_t ptr; // void *old_ptr;
 };
 
-struct escape_l2_cache {
-  uint32_t loc; uint32_t obj_start;
+#define ESCAPE_CACHE_L2
+#define CACHE_SIZE (1024)
+#define L2_CACHE_SIZE (1024*1024)
+#define L2_CACHE_NUM  (16)
+
+struct escape_l2_cache_entry {
+  uint32_t loc; 
+  uint32_t obj_start;
 };
 
-#define ESCAPE_CACHE_L2
-#define CACHE_SIZE 1024
-#define L2_CACHE_SIZE 16
+struct escape_l2_cache {
+  uint32_t idx;
+  struct escape_l2_cache_entry entry[L2_CACHE_NUM];
+};
 
 #define OBJ_START(x) (uint64_t)((uint64_t)x >> 24)
 #define SMALL_PTR(x) (uint64_t)((uint64_t)x & 0xffffffffff)
 #define OBJ_SIZE(x) (((uint32_t)(x & 0xffffff)) << 3)
 #define OBJ_SIZE_RAW(x) ((uint32_t)(x & 0xffffff))
+#define MASK(x) ((uint32_t)((x >> 3) & (L2_CACHE_SIZE - 1)))
 
 using SampledAllocationRecorder =
     ::tcmalloc::tcmalloc_internal::SampleRecorder<SampledAllocation,
