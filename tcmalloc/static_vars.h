@@ -60,24 +60,18 @@ struct escape_cache {
 
 #define ESCAPE_CACHE_L2
 #define CACHE_SIZE (1024)
-#define L2_CACHE_SIZE (1024*1024)
-#define L2_CACHE_NUM  (16)
+#define L2_CACHE_SIZE (1024*1024*4)
 
 struct escape_l2_cache_entry {
   uint32_t loc; 
   uint32_t obj_start;
 };
 
-struct escape_l2_cache {
-  uint32_t idx;
-  struct escape_l2_cache_entry entry[L2_CACHE_NUM];
-};
-
 #define OBJ_START(x) (uint64_t)((uint64_t)x >> 24)
 #define SMALL_PTR(x) (uint64_t)((uint64_t)x & 0xffffffffff)
 #define OBJ_SIZE(x) (((uint32_t)(x & 0xffffff)) << 3)
 #define OBJ_SIZE_RAW(x) ((uint32_t)(x & 0xffffff))
-#define MASK(x) ((uint32_t)((x >> 3) & (L2_CACHE_SIZE - 1)))
+#define MASK(x) ((uint32_t)(((uint64_t)x >> 3) & (L2_CACHE_SIZE - 1)))
 
 using SampledAllocationRecorder =
     ::tcmalloc::tcmalloc_internal::SampleRecorder<SampledAllocation,
@@ -220,7 +214,7 @@ class Static final {
 #endif
 #ifdef ESCAPE_CACHE_L2
   static uint32_t escape_l2_pos;
-  static struct escape_l2_cache escape_l2_caches[L2_CACHE_SIZE];
+  static struct escape_l2_cache_entry escape_l2_caches[L2_CACHE_SIZE];
 #endif
   static uint32_t escape_pos;
   static struct escape_cache escape_caches[CACHE_SIZE];

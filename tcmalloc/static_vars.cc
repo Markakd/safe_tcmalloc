@@ -96,7 +96,7 @@ uint32_t Static::escape_pos;
 
 #ifdef ESCAPE_CACHE_L2
 uint32_t Static::escape_l2_pos;
-struct escape_l2_cache Static::escape_l2_caches[L2_CACHE_SIZE];
+struct escape_l2_cache_entry Static::escape_l2_caches[L2_CACHE_SIZE];
 #endif
 
 struct escape_cache Static::escape_caches[CACHE_SIZE];
@@ -125,7 +125,7 @@ size_t Static::metadata_bytes() {
 #endif
       sizeof(uint32_t) + sizeof(struct escape_cache) * CACHE_SIZE +
 #ifdef ESCAPE_CACHE_L2
-      sizeof(uint32_t) + sizeof(struct escape_l2_cache) * L2_CACHE_SIZE +
+      sizeof(uint32_t) + sizeof(struct escape_l2_cache_entry) * L2_CACHE_SIZE +
 #endif
       sizeof(numa_topology_) + sizeof(escape_allocator_) +
       sizeof(escape_list_allocator_);

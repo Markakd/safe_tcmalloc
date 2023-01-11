@@ -922,20 +922,14 @@ static inline void flush_escape() {
     // but it doesn't matter
     if (SMALL_PTR(real_ptr) >= obj_start && SMALL_PTR(real_ptr) < (obj_start+obj_size)) {
 #ifdef ESCAPE_CACHE_L2
-      bool hit = false;
-      escape_l2_cache *ec = tc_globals.escape_l2_caches + MASK(loc);
-      for (int i = 0; i < L2_CACHE_NUM; ++i) {
-        if ((uint32_t)loc == ec->entry[i].loc &&
-            (uint32_t)obj_start == ec->entry[i].obj_start) {
+      escape_l2_cache_entry *ec = tc_globals.escape_l2_caches + MASK(loc);
+      if ((uint32_t)loc == ec->loc &&
+          (uint32_t)obj_start == ec->obj_start) {
 #ifdef ENABLE_STATISTIC
           tc_globals.escape_l2_cache_optimized++;
 #endif
-          hit = true;
-          break;  
-        }
+          continue;  
       }
-      if (hit)
-        continue;
 #endif
       Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)real_ptr));
       if (!span || span->obj_size != OBJ_SIZE_RAW(ptr_info))
@@ -946,10 +940,8 @@ static inline void flush_escape() {
       commit_escape(span, (void **)loc, (void *)real_ptr, obj_idx);
 
 #ifdef ESCAPE_CACHE_L2
-      unsigned idx = ec->idx;
-      ec->entry[idx].loc = (uint32_t)loc;
-      ec->entry[idx].obj_start = (uint32_t)obj_start;
-      ec->idx = (ec->idx + 1) % L2_CACHE_NUM;
+      ec->loc = (uint32_t)loc;
+      ec->obj_start = (uint32_t)obj_start;
 #endif
     } else {
       // removing old records is heavy
