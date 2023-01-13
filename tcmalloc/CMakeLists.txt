@@ -75,6 +75,7 @@ tcmalloc_cc_library(
  PUBLIC
 
  COPTS "-O2"
+       "-DNDEBUG"
  LINKOPTS "-O2"
 
  DEPS ${tcmalloc_deps} 
