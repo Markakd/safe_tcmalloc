@@ -61,6 +61,7 @@ struct escape_cache {
 #define ESCAPE_CACHE_L2
 #define CACHE_SIZE (1024)
 #define L2_CACHE_SIZE (1024*1024*4)
+#define CHUNK_CACHE_SIZE (1024)
 
 struct escape_l2_cache_entry {
   uint32_t loc; 
@@ -71,6 +72,7 @@ struct escape_l2_cache_entry {
 #define SMALL_PTR(x) (uint64_t)((uint64_t)x & 0xffffffffff)
 #define OBJ_SIZE(x) (((uint32_t)(x & 0xffffff)) << 3)
 #define OBJ_SIZE_RAW(x) ((uint32_t)(x & 0xffffff))
+#define TAG(x) ((uint32_t)(((uint64_t)x >> 3) & (CHUNK_CACHE_SIZE - 1)))
 #define MASK(x) ((uint32_t)(((uint64_t)x >> 3) & (L2_CACHE_SIZE - 1)))
 
 using SampledAllocationRecorder =
@@ -218,7 +220,7 @@ class Static final {
 #endif
   static uint32_t escape_pos;
   static struct escape_cache escape_caches[CACHE_SIZE];
-
+  static size_t chunk_caches[CHUNK_CACHE_SIZE];
  private:
 #if defined(__clang__)
   __attribute__((preserve_most))

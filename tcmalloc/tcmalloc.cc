@@ -1884,6 +1884,15 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 #ifdef ENABLE_STATISTIC
   tc_globals.get_range_cnt++;
 #endif
+  size_t ptr_info = tc_globals.chunk_caches[TAG(base)];
+  size_t _obj_start = OBJ_START(ptr_info);
+  uint32_t _obj_size = OBJ_SIZE(ptr_info);
+
+  if ((size_t)base >= _obj_start && (size_t)base < (_obj_start+_obj_size)) {
+    *start = _obj_start;
+    return _obj_start + _obj_size;
+  }
+
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span *span;
@@ -1908,6 +1917,10 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 
   size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
   size_t chunk_end = chunk_start + obj_size;
+
+  if (obj_size < (1ULL << 32)) {
+    tc_globals.chunk_caches[TAG(base)] = (chunk_start << 24) | (obj_size / 8ULL);
+  }
 
   *start = chunk_start;
   return chunk_end;

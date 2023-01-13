@@ -100,6 +100,7 @@ struct escape_l2_cache_entry Static::escape_l2_caches[L2_CACHE_SIZE];
 #endif
 
 struct escape_cache Static::escape_caches[CACHE_SIZE];
+size_t  Static::chunk_caches[CHUNK_CACHE_SIZE];
 
 size_t Static::metadata_bytes() {
   // This is ugly and doesn't nicely account for e.g. alignment losses
@@ -124,6 +125,7 @@ size_t Static::metadata_bytes() {
       sizeof(size_t) * 15 +
 #endif
       sizeof(uint32_t) + sizeof(struct escape_cache) * CACHE_SIZE +
+      sizeof(size_t) * CHUNK_CACHE_SIZE + 
 #ifdef ESCAPE_CACHE_L2
       sizeof(uint32_t) + sizeof(struct escape_l2_cache_entry) * L2_CACHE_SIZE +
 #endif
