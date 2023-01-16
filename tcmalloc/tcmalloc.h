@@ -49,6 +49,9 @@ void* TCMallocInternalStrncpyCheck(void* dst, void* src, size_t maxlen) noexcept
 int TCMallocInternalGepCheckBoundary(void *base, void* ptr, size_t size) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 
+void TCMallocInternalInlineHook(size_t ***pagemap, unsigned int** sizemap) noexcept
+    ABSL_ATTRIBUTE_SECTION(google_malloc);
+
 int TCMallocInternalEscape(void **loc, void* ptr) noexcept
     ABSL_ATTRIBUTE_SECTION(google_malloc);
 

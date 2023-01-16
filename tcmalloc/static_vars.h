@@ -219,7 +219,7 @@ class Static final {
   static uint32_t escape_pos;
   static struct escape_cache escape_caches[CACHE_SIZE];
 
- private:
+//  private:
 #if defined(__clang__)
   __attribute__((preserve_most))
 #endif

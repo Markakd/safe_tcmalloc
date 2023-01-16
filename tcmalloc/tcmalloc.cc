@@ -2353,6 +2353,12 @@ extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalGepCheckBoundary(
 #endif
 }
 
+extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalInlineHook(
+  size_t ***pagemap, unsigned int **sizemap) noexcept {
+    *pagemap = (size_t**) (&tcmalloc::tcmalloc_internal::Static::pagemap_);
+    *sizemap = (unsigned int*) (&tcmalloc::tcmalloc_internal::Static::sizemap_); 
+}
+
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalBcCheckBoundary(
     void *base, size_t size) noexcept {
 #ifdef ENABLE_STATISTIC
