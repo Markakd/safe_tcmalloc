@@ -1884,33 +1884,39 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 #ifdef ENABLE_STATISTIC
   tc_globals.get_range_cnt++;
 #endif
-  const PageId p = PageIdContaining(base);
-  size_t start_addr, obj_size;
-  Span *span;
 
-  size_t page_info = tc_globals.pagemap().get_page_info(p);
-  size_t size_class = page_info & (CompactSizeClass)(-1);
-  if (size_class != 0) {
-    obj_size = tc_globals.sizemap().class_to_size(size_class);
-    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  size_t** pagemap_ = (size_t**) &tcmalloc::tcmalloc_internal::Static::pagemap_;
+  unsigned int* sizemap_ = (unsigned int*) &tcmalloc::tcmalloc_internal::Static::sizemap_;
+  
+  size_t _chunk_start, _chunk_end;
+  size_t _base = (size_t) base;
+  size_t mask = (_base >> 13) & 0x7fff;
+  size_t* pagemap = pagemap_[_base >> 28];
+  size_t pageid, start_addr, obj_size;
+
+  if (pagemap && (pageid = pagemap[mask], (unsigned char) pageid)) {
+      start_addr = pageid >> 8 << 13;
+      obj_size = sizemap_[(unsigned char) pageid + 1171];
+      _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+      _chunk_end = _chunk_start + obj_size;
   } else {
-    span = tc_globals.pagemap().GetDescriptor(p);
-    if (!span) {
+      size_t* span = pagemap_[mask + 0x8000];
+      if (span == nullptr) {
 #ifdef ENABLE_STATISTIC
-  tc_globals.get_range_invalid_cnt++;
+        tc_globals.get_range_invalid_cnt++;
 #endif
-      *start = 0;
-      return 0x1000000000000;
-    }
-    obj_size = span->obj_size * 8ULL;
-    start_addr = (size_t)span->start_address();
+          _chunk_start = 0;
+          _chunk_end = 0x1000000000000;
+      } else {
+          obj_size = 8LL * *((unsigned int*) span + 6);
+          start_addr = span[6] << 13;
+          _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+          _chunk_end = _chunk_start + obj_size;
+      }
   }
 
-  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
-  size_t chunk_end = chunk_start + obj_size;
-
-  *start = chunk_start;
-  return chunk_end;
+  *start = _chunk_start;
+  return _chunk_end;
 }
 
 static inline void do_report_statistic() {
