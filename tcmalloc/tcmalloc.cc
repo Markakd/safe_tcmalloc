@@ -1649,50 +1649,37 @@ static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
 // return -1 for invalid access
 // return 1 for non-heap memory
 static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noexcept {
-  const PageId p = PageIdContaining(base);
-  size_t start_addr, obj_size;
-  Span *span;
+   size_t** pagemap_ = (size_t**) &tcmalloc::tcmalloc_internal::Static::pagemap_;
+  unsigned int* sizemap_ = (unsigned int*) &tcmalloc::tcmalloc_internal::Static::sizemap_;
+  
+  size_t _chunk_start, _chunk_end;
+  size_t _base = (size_t) base;
+  size_t mask = (_base >> 13) & 0x7fff;
+  size_t* pagemap = pagemap_[_base >> 28];
+  size_t pageid, start_addr, obj_size;
 
-// #define OBJ_SIZE_DEBUG
-#ifdef OBJ_SIZE_DEBUG
-  span = tc_globals.pagemap().GetExistingDescriptor(p);
-  CHECK_CONDITION(span->obj_size != 0);
-  CHECK_CONDITION(span->obj_size * 8ULL = GetSize(base));
-
-  size_t raw_data = tc_globals.pagemap().get_page_info(p);
-  if (raw_data) {
-    CHECK_CONDITION((raw_data >> 8) == span->first_page().index());
-  }
-#endif
-
-  size_t page_info = tc_globals.pagemap().get_page_info(p);
-  size_t size_class = page_info & (CompactSizeClass)(-1);
-  if (size_class != 0) {
-    obj_size = tc_globals.sizemap().class_to_size(size_class);
-    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  if (pagemap && (pageid = pagemap[mask], (unsigned char) pageid)) {
+      start_addr = pageid >> 8 << 13;
+      obj_size = sizemap_[(unsigned char) pageid + 1171];
+      _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+      _chunk_end = _chunk_start + obj_size;
+      if (ptr >= (void*) _chunk_start && ptr < (void*) _chunk_end)
+        return 0;
   } else {
-    span = tc_globals.pagemap().GetDescriptor(p);
-    if (!span) {
+      size_t* span = pagemap_[mask + 0x8000];
+      if (span == nullptr) {
 #ifdef ENABLE_STATISTIC
   tc_globals.gep_check_invalid_cnt++;
 #endif
-      return 1;
-    }
-    obj_size = span->obj_size * 8ULL;
-    start_addr = (size_t)span->start_address();
-  }
-
-  size_t chunk_start = start_addr + (((size_t)base - start_addr) / obj_size) * obj_size;
-  size_t chunk_end = chunk_start + obj_size;
-
-#ifdef PROTECTION_DEBUG
-  printf("start_addr 0x%lx, objsize %ld, chunk range [%lx-%lx], base %p, access range [%p-0x%lx]\n",
-          start_addr, obj_size, chunk_start, chunk_end, base, ptr, size+(size_t)ptr);
-#endif
-
-  // We need reserve eight more bytes
-  if ((size_t)ptr >= chunk_start && ((size_t)ptr + size) <= chunk_end) {
-    return 0;
+          return 0;
+      } else {
+          obj_size = 8LL * *((unsigned int*) span + 6);
+          start_addr = span[6] << 13;
+          _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+          _chunk_end = _chunk_start + obj_size;
+          if (ptr >= (void*) _chunk_start && ptr < (void*) _chunk_end)
+            return 0;
+      }
   }
 
 #ifdef ENABLE_ERROR_REPORT
