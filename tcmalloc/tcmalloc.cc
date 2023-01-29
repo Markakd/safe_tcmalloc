@@ -1654,6 +1654,10 @@ static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noex
   
   size_t _chunk_start, _chunk_end;
   size_t _base = (size_t) base;
+
+  if ((_base >> 48) != 0)
+    return 0;
+
   size_t mask = (_base >> 13) & 0x7fff;
   size_t* pagemap = pagemap_[_base >> 28];
   size_t pageid, start_addr, obj_size;
