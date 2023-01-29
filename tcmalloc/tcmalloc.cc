@@ -1877,6 +1877,12 @@ static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
   
   size_t _chunk_start, _chunk_end;
   size_t _base = (size_t) base;
+
+  if ((_base >> 48) != 0) {
+    *start = 0;
+    return 0x1000000000000;
+  }
+
   size_t mask = (_base >> 13) & 0x7fff;
   size_t* pagemap = pagemap_[_base >> 28];
   size_t pageid, start_addr, obj_size;
