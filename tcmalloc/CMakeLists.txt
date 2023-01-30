@@ -74,7 +74,8 @@ tcmalloc_cc_library(
         "experimental_cfl_aware_size_class.cc"
  PUBLIC
 
- COPTS "-O2"
+ COPTS "-g"
+       "-O2"
        "-DNDEBUG"
  LINKOPTS "-O2"
 
