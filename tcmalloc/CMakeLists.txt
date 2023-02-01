@@ -1,6 +1,7 @@
 add_subdirectory(internal)
 add_library(thirdparty_jemalloc_static STATIC IMPORTED GLOBAL)
 file(COPY ../libjemalloc.a DESTINATION ../../../)
+file(COPY ../libjemalloc.a DESTINATION .)
 set_target_properties(thirdparty_jemalloc_static PROPERTIES IMPORTED_LOCATION
         "./libjemalloc.a")
 
