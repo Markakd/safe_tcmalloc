@@ -942,33 +942,26 @@ static inline void flush_escape() {
     // but it doesn't matter
     if (SMALL_PTR(real_ptr) >= obj_start && SMALL_PTR(real_ptr) < (obj_start+obj_size)) {
 #ifdef ESCAPE_CACHE_L2
-      bool hit = false;
-      for (int i=0; i<L2_CACHE_SIZE; i++) {
-        if ((uint32_t)loc == tc_globals.escape_l2_caches[i].loc &&
-              (uint32_t)obj_start == tc_globals.escape_l2_caches[i].obj_start) {
+      escape_l2_cache_entry *ec = tc_globals.escape_l2_caches + MASK(loc);
+      if ((uint32_t)loc == ec->loc &&
+          (uint32_t)obj_start == ec->obj_start) {
 #ifdef ENABLE_STATISTIC
           tc_globals.escape_l2_cache_optimized++;
 #endif
-          hit = true;
-          break;
-        } 
+          continue;  
       }
-      if (hit)
-        continue;
 #endif
       Span *span = tc_globals.pagemap().GetDescriptor(PageIdContaining((void*)real_ptr));
       if (!span || span->obj_size != OBJ_SIZE_RAW(ptr_info))
         continue;
       unsigned obj_idx = ((size_t)real_ptr - (size_t)span->start_address()) / obj_size;
-      if (obj_idx >= 1024)
+      if (obj_idx >= escapeListSize)
         continue;
       commit_escape(span, (void **)loc, (void *)real_ptr, obj_idx);
 
 #ifdef ESCAPE_CACHE_L2
-      unsigned idx = tc_globals.escape_l2_pos % L2_CACHE_SIZE;
-      tc_globals.escape_l2_caches[idx].loc = (uint32_t)loc;
-      tc_globals.escape_l2_caches[idx].obj_start = (uint32_t)obj_start;
-      tc_globals.escape_l2_pos = ++idx;
+      ec->loc = (uint32_t)loc;
+      ec->obj_start = (uint32_t)obj_start;
 #endif
     } else {
       // removing old records is heavy
@@ -1509,9 +1502,6 @@ inline struct mallinfo do_mallinfo() {
 #endif  // TCMALLOC_HAVE_STRUCT_MALLINFO
 
 static inline size_t do_get_chunk_end(void* base) noexcept {
-#ifdef ENABLE_STATISTIC
-  tc_globals.get_end_cnt++;
-#endif
   const PageId p = PageIdContaining(base);
   size_t start_addr, obj_size;
   Span* span;
@@ -1679,47 +1669,37 @@ static inline void* do_strcat_check(void* _dst, void* _src) noexcept {
 // return -1 for invalid access
 // return 1 for non-heap memory
 static inline int do_gep_check_boundary(void *base, void *ptr, size_t size) noexcept {
-  const PageId p = PageIdContaining(base);
-  size_t start_addr, obj_size;
-  Span *span;
+   size_t** pagemap_ = (size_t**) &tcmalloc::tcmalloc_internal::Static::pagemap_;
+  unsigned int* sizemap_ = (unsigned int*) &tcmalloc::tcmalloc_internal::Static::sizemap_;
+  
+  size_t _chunk_start, _chunk_end;
+  size_t _base = (size_t) base;
+  size_t mask = (_base >> 13) & 0x7fff;
+  size_t* pagemap = pagemap_[_base >> 28];
+  size_t pageid, start_addr, obj_size;
 
-// #define OBJ_SIZE_DEBUG
-#ifdef OBJ_SIZE_DEBUG
-  span = tc_globals.pagemap().GetExistingDescriptor(p);
-  CHECK_CONDITION(span->obj_size != 0);
-  CHECK_CONDITION(span->obj_size * 8ULL = GetSize(base));
-
-  size_t raw_data = tc_globals.pagemap().get_page_info(p);
-  if (raw_data) {
-    CHECK_CONDITION((raw_data >> 8) == span->first_page().index());
-  }
-#endif
-
-  size_t page_info = tc_globals.pagemap().get_page_info(p);
-  size_t size_class = page_info & (CompactSizeClass)(-1);
-  if (size_class != 0) {
-    obj_size = tc_globals.sizemap().class_to_size(size_class);
-    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  if (pagemap && (pageid = pagemap[mask], (unsigned char) pageid)) {
+      start_addr = pageid >> 8 << 13;
+      obj_size = sizemap_[(unsigned char) pageid + 1171];
+      _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+      _chunk_end = _chunk_start + obj_size;
+      if (ptr >= (void*) _chunk_start && ptr < (void*) _chunk_end)
+        return 0;
   } else {
-    span = tc_globals.pagemap().GetDescriptor(p);
-    if (!span) {
-      return 1;
-    }
-    obj_size = span->obj_size * 8ULL;
-    start_addr = (size_t)span->start_address();
-  }
-
-  size_t chunk_start = start_addr + (((size_t)base - start_addr) / obj_size) * obj_size;
-  size_t chunk_end = chunk_start + obj_size;
-
-#ifdef PROTECTION_DEBUG
-  printf("start_addr 0x%lx, objsize %ld, chunk range [%lx-%lx], base %p, access range [%p-0x%lx]\n",
-          start_addr, obj_size, chunk_start, chunk_end, base, ptr, size+(size_t)ptr);
+      size_t* span = pagemap_[mask + 0x8000];
+      if (span == nullptr) {
+#ifdef ENABLE_STATISTIC
+  tc_globals.gep_check_invalid_cnt++;
 #endif
-
-  // We need reserve eight more bytes
-  if ((size_t)ptr >= chunk_start && ((size_t)ptr + size) <= chunk_end) {
-    return 0;
+          return 0;
+      } else {
+          obj_size = 8LL * *((unsigned int*) span + 6);
+          start_addr = span[6] << 13;
+          _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+          _chunk_end = _chunk_start + obj_size;
+          if (ptr >= (void*) _chunk_start && ptr < (void*) _chunk_end)
+            return 0;
+      }
   }
 
 #ifdef ENABLE_ERROR_REPORT
@@ -1761,6 +1741,9 @@ static inline int do_bc_check_boundary(void *base, size_t size) noexcept {
   } else {
     span = tc_globals.pagemap().GetDescriptor(p);
     if (!span) {
+#ifdef ENABLE_STATISTIC
+  tc_globals.bc_check_invalid_cnt++;
+#endif
       return 1;
     }
     obj_size = span->obj_size * 8ULL;
@@ -1852,7 +1835,7 @@ static inline int do_escape(
   }
 
   size_t idx = ((size_t)ptr - (size_t)span->start_address()) / obj_size;
-  if (idx >= 1024)
+  if (idx >= escapeListSize)
     return -1;
 
   size_t obj_start = (size_t)span->start_address() + obj_size * idx;
@@ -1886,9 +1869,9 @@ static inline int do_escape(
   tc_globals.escape_caches[tc_globals.escape_pos].loc = loc;
   tc_globals.escape_caches[tc_globals.escape_pos++].ptr = ptr_info;
 
+#ifdef PROTECTION_DEBUG
   CHECK_CONDITION(OBJ_START(ptr_info) == SMALL_PTR(obj_start));
   CHECK_CONDITION(OBJ_SIZE(ptr_info) == (uint32_t)obj_size);
-#ifdef PROTECTION_DEBUG
   printf("cached escape: loc (%p) -> ptr (%p)\n", loc, ptr);
 #endif
   return 0;
@@ -1906,32 +1889,41 @@ static inline void do_report_error() noexcept {
 
 static inline size_t do_get_chunk_range(void* base, size_t* start) noexcept {
 #ifdef ENABLE_STATISTIC
-  tc_globals.get_end_cnt++;
+  tc_globals.get_range_cnt++;
 #endif
-  const PageId p = PageIdContaining(base);
-  size_t start_addr, obj_size;
-  Span *span;
 
-  size_t page_info = tc_globals.pagemap().get_page_info(p);
-  size_t size_class = page_info & (CompactSizeClass)(-1);
-  if (size_class != 0) {
-    obj_size = tc_globals.sizemap().class_to_size(size_class);
-    start_addr = (size_t)PageId(page_info >> (sizeof(CompactSizeClass) * 8)).start_addr();
+  size_t** pagemap_ = (size_t**) &tcmalloc::tcmalloc_internal::Static::pagemap_;
+  unsigned int* sizemap_ = (unsigned int*) &tcmalloc::tcmalloc_internal::Static::sizemap_;
+  
+  size_t _chunk_start, _chunk_end;
+  size_t _base = (size_t) base;
+  size_t mask = (_base >> 13) & 0x7fff;
+  size_t* pagemap = pagemap_[_base >> 28];
+  size_t pageid, start_addr, obj_size;
+
+  if (pagemap && (pageid = pagemap[mask], (unsigned char) pageid)) {
+      start_addr = pageid >> 8 << 13;
+      obj_size = sizemap_[(unsigned char) pageid + 1171];
+      _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+      _chunk_end = _chunk_start + obj_size;
   } else {
-    span = tc_globals.pagemap().GetDescriptor(p);
-    if (!span) {
-      *start = 0;
-      return 0x1000000000000;
-    }
-    obj_size = span->obj_size * 8ULL;
-    start_addr = (size_t)span->start_address();
+      size_t* span = pagemap_[mask + 0x8000];
+      if (span == nullptr) {
+#ifdef ENABLE_STATISTIC
+        tc_globals.get_range_invalid_cnt++;
+#endif
+          _chunk_start = 0;
+          _chunk_end = 0x1000000000000;
+      } else {
+          obj_size = 8LL * *((unsigned int*) span + 6);
+          start_addr = span[6] << 13;
+          _chunk_start = start_addr + (obj_size * ((_base - start_addr) / obj_size));
+          _chunk_end = _chunk_start + obj_size;
+      }
   }
 
-  size_t chunk_start = (size_t)(start_addr) + (((size_t)base - (size_t)(start_addr)) / obj_size) * obj_size;
-  size_t chunk_end = chunk_start + obj_size;
-
-  *start = chunk_start;
-  return chunk_end;
+  *start = _chunk_start;
+  return _chunk_end;
 }
 
 static inline void do_report_statistic() {
@@ -1944,9 +1936,12 @@ static inline void do_report_statistic() {
   fprintf(stderr, "escape optimized count\t: %ld\n", tc_globals.escape_loc_optimized);
   fprintf(stderr, "escape final count\t: %ld\n", tc_globals.escape_final_cnt);
   fprintf(stderr, "escape cache optimized\t: %ld\n", tc_globals.escape_cache_optimized);
-  fprintf(stderr, "get end count\t: %ld\n", tc_globals.get_end_cnt);
+  fprintf(stderr, "get range count\t: %ld\n", tc_globals.get_range_cnt);
+  fprintf(stderr, "get range invalid count\t: %ld\n", tc_globals.get_range_invalid_cnt);
   fprintf(stderr, "gep check count\t: %ld\n", tc_globals.gep_check_cnt);
+  fprintf(stderr, "gep check invalid count\t: %ld\n", tc_globals.gep_check_invalid_cnt);
   fprintf(stderr, "bc check count\t: %ld\n", tc_globals.bc_check_cnt);
+  fprintf(stderr, "bc check invalid count\t: %ld\n", tc_globals.bc_check_invalid_cnt);
 #endif
 }
 
@@ -2369,6 +2364,12 @@ extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalGepCheckBoundary(
 #else
   return 0;
 #endif
+}
+
+extern "C" ABSL_CACHELINE_ALIGNED void TCMallocInternalInlineHook(
+  size_t ***pagemap, unsigned int **sizemap) noexcept {
+    *pagemap = (size_t**) (&tcmalloc::tcmalloc_internal::Static::pagemap_);
+    *sizemap = (unsigned int*) (&tcmalloc::tcmalloc_internal::Static::sizemap_); 
 }
 
 extern "C" ABSL_CACHELINE_ALIGNED int TCMallocInternalBcCheckBoundary(

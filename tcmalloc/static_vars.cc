@@ -85,15 +85,18 @@ size_t Static::escape_loc_optimized;
 size_t Static::escape_cache_optimized;
 size_t Static::escape_l2_cache_optimized;
 size_t Static::escape_final_cnt;
-size_t Static::get_end_cnt;
+size_t Static::get_range_cnt;
 size_t Static::gep_check_cnt;
 size_t Static::bc_check_cnt;
+size_t Static::get_range_invalid_cnt;
+size_t Static::gep_check_invalid_cnt;
+size_t Static::bc_check_invalid_cnt;
 #endif
 uint32_t Static::escape_pos;
 
 #ifdef ESCAPE_CACHE_L2
 uint32_t Static::escape_l2_pos;
-struct escape_l2_cache Static::escape_l2_caches[L2_CACHE_SIZE];
+struct escape_l2_cache_entry Static::escape_l2_caches[L2_CACHE_SIZE];
 #endif
 
 struct escape_cache Static::escape_caches[CACHE_SIZE];
@@ -118,11 +121,11 @@ size_t Static::metadata_bytes() {
       sizeof(sampled_internal_fragmentation_) +
       sizeof(peak_heap_tracker_) + sizeof(guardedpage_allocator_) +
 #ifdef ENABLE_STATISTIC
-      sizeof(size_t) * 12 +
+      sizeof(size_t) * 15 +
 #endif
       sizeof(uint32_t) + sizeof(struct escape_cache) * CACHE_SIZE +
 #ifdef ESCAPE_CACHE_L2
-      sizeof(uint32_t) + sizeof(struct escape_l2_cache) * L2_CACHE_SIZE +
+      sizeof(uint32_t) + sizeof(struct escape_l2_cache_entry) * L2_CACHE_SIZE +
 #endif
       sizeof(numa_topology_) + sizeof(escape_allocator_) +
       sizeof(escape_list_allocator_);

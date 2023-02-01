@@ -46,7 +46,7 @@ inline constexpr size_t kBitmapMinObjectSize = kPageSize / 64;
 // by N we multiply by M = kBitmapScalingDenominator / N and round the resulting
 // value.
 inline constexpr size_t kBitmapScalingDenominator = 65536;
-
+inline constexpr size_t escapeListSize = 1024;
 // Information kept for a span (a contiguous run of pages).
 //
 // Spans can be in different states. The current state determines set of methods
@@ -79,12 +79,6 @@ struct escape {
   };
 };
 
-struct escape_chunk {
-  struct escape_chunk *next;
-  struct escape chunks[21];
-  // this should be 512 size
-};
-
 // the size of memory allocated from metadata
 // not a cache friendly implementation right now
 // it is a escape for each allocation
@@ -93,7 +87,7 @@ class EscapeChunk {
 };
 
 class EscapeList {
-  struct escape *list[1024];
+  struct escape *list[escapeListSize];
 };
 
 class Span : public SpanList::Elem {
