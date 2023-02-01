@@ -125,6 +125,10 @@
 #include <malloc.h>
 #endif
 
+#ifdef JEMALLOC
+#include "tcmalloc/jemalloc.h"
+#endif
+
 GOOGLE_MALLOC_SECTION_BEGIN
 namespace tcmalloc {
 namespace tcmalloc_internal {
@@ -851,22 +855,38 @@ inline size_t GetSize(const void* ptr) {
 }
 
 static inline struct escape** alloc_escape_list() {
+#ifndef JEMALLOC
   struct escape **list = (struct escape **)Static::escape_list_allocator().New();
+#else
+  struct escape **list = (struct escape **)je_malloc(1024*sizeof(struct escape *));
+#endif
   memset(list, 0, 1024*sizeof(struct escape *));
   return list;
 }
 
 static inline void delete_escape_list(struct escape **list) {
+#ifndef JEMALLOC
   Static::escape_list_allocator().Delete(reinterpret_cast<EscapeList*>(list));
+#else
+  je_free(list);
+#endif
 }
 
 static inline struct escape* alloc_escape() {
   // no need to zero memory
+#ifndef JEMALLOC
   return (struct escape *)Static::escape_allocator().New();
+#else
+  return (struct escape *)je_malloc(sizeof (struct escape));
+#endif
 }
 
 static inline void delete_escape(struct escape *e) {
+#ifndef JEMALLOC
   Static::escape_allocator().Delete(reinterpret_cast<EscapeChunk*>(e));
+#else
+  je_free(e);
+#endif
 }
 
 static inline void commit_escape(Span *span, void **loc,

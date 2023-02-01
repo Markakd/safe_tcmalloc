@@ -1,4 +1,8 @@
 add_subdirectory(internal)
+add_library(thirdparty_jemalloc_static STATIC IMPORTED GLOBAL)
+file(COPY libjemalloc.a DESTINATION $(CMAKE_CURRENT_BINARY_DIR))
+set_target_properties(thirdparty_jemalloc_static PROPERTIES IMPORTED_LOCATION
+        "../libjemalloc.a")
 
 tcmalloc_cc_library(
   NAME "size_class_info"
@@ -74,11 +78,12 @@ tcmalloc_cc_library(
         "experimental_cfl_aware_size_class.cc"
  PUBLIC
 
- COPTS "-O2"
- LINKOPTS "-O2"
+ COPTS -O2 -DJEMALLOC
+ LINKOPTS "-O2 -DJEMALLOC"
 
  DEPS ${tcmalloc_deps} 
         "tcmalloc::common"
+        "thirdparty_jemalloc_static"
 
 #   ALWAYSLINK
 )
