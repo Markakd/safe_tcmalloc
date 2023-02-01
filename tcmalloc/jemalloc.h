@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_H
 #define JEMALLOC_H
 
-void *je_malloc(unsigned long size);
-void je_free(void *ptr);
+extern "C" void *je_malloc(unsigned long size);
+extern "C" void je_free(void *ptr);
 
 #endif

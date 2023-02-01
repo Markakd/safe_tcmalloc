@@ -1,8 +1,8 @@
 add_subdirectory(internal)
 add_library(thirdparty_jemalloc_static STATIC IMPORTED GLOBAL)
-file(COPY libjemalloc.a DESTINATION $(CMAKE_CURRENT_BINARY_DIR))
+file(COPY ../libjemalloc.a DESTINATION ../../../)
 set_target_properties(thirdparty_jemalloc_static PROPERTIES IMPORTED_LOCATION
-        "../libjemalloc.a")
+        "./libjemalloc.a")
 
 tcmalloc_cc_library(
   NAME "size_class_info"
