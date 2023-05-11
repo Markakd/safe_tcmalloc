@@ -59,7 +59,7 @@ struct escape_cache {
 };
 
 #define ESCAPE_CACHE_L2
-#define CACHE_SIZE (1024)
+#define CACHE_SIZE (1)
 #define L2_CACHE_SIZE (1024*1024*4)
 
 struct escape_l2_cache_entry {

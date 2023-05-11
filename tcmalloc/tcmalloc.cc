@@ -911,6 +911,7 @@ static inline void flush_escape() {
 #ifdef PROTECTION_DEBUG
   printf("flushing caches\n");
 #endif
+  pageheap_lock.Lock();
   for (int i=0; i<tc_globals.escape_pos; i++) {
     size_t loc = (size_t)tc_globals.escape_caches[i].loc;
     size_t ptr_info = tc_globals.escape_caches[i].ptr;
@@ -951,6 +952,7 @@ static inline void flush_escape() {
 #endif
     }
   }
+  pageheap_lock.Unlock();
   tc_globals.escape_pos = 0;
 }
 
@@ -960,6 +962,7 @@ static inline void poison_escapes(Span *span, int idx,
   if (!escape_list || !escape_list[idx])
     return;
 
+  pageheap_lock.Lock();
   struct escape* cur = escape_list[idx];
   while (cur) {
     struct escape *next = cur->next;
@@ -975,6 +978,8 @@ static inline void poison_escapes(Span *span, int idx,
     delete_escape(cur);
     cur = next;
   }
+  pageheap_lock.Unlock();
+
   escape_list[idx] = nullptr;
 }
 
