@@ -1812,6 +1812,19 @@ static inline int do_escape(
   if (!span) {
     return -1;
   }
+
+  unsigned long long rsp;
+  asm("mov %%rsp, %0" : "=r" (rsp));
+
+  if (rsp < (unsigned long long) loc) {
+    // loc is on stack
+  } else if (tc_globals.pagemap().GetDescriptor(PageIdContaining((void*) loc))) {
+    // loc is on heap
+  } else {
+    // loc is not on heap or stack
+    return -1;
+  }
+
   span->Prefetch();
 #ifdef ENABLE_STATISTIC
   tc_globals.escape_valid_cnt++;
